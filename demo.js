@@ -311,6 +311,10 @@ export function createDemo(divId, demo_type = "growing") {
         models = await response.json();
         let gridBox = $('#target-shelf');
         gridBox.innerHTML = '';
+        $('#origtex').innerHTML = '';
+        $('#origtex').style = '';
+        $('#texhinttext').innerHTML = '';
+        
         const targets = demo_type == "growing" ? growing_targets : texture_targets;
         for (const name of targets) {
             if (!(name in models)) continue;
@@ -327,7 +331,7 @@ export function createDemo(divId, demo_type = "growing") {
 
             const target_img = document.createElement('div');
             target_img.style.background = "url('" + media_path + "')";
-            target_img.style.backgroundSize = "100%100%";
+            target_img.style.backgroundSize = "100% 100%";
             // target_img.style.backgroundSize = "100px100px";
             target_img.id = name; //html5 support arbitrary id:s
             target_img.className = 'target-square';
@@ -341,24 +345,29 @@ export function createDemo(divId, demo_type = "growing") {
                 }
                 modelA = load_model(name, "A");
                 reset();
+                $("#origtex").style.background = "url('" + media_path + "')";
+                $("#origtex").style.width = "224px";
+                $("#origtex").style.height = "224px";
+                $("#origtex").style.backgroundSize = "100% 100%";
+                let desc = document.createElement('p')
+                desc.innerHTML = "Target Image: " + name;
+                // desc.href = "https://www.robots.ox.ac.uk/~vgg/data/dtd/"
+                $("#texhinttext").innerHTML = '';
+                $("#texhinttext").appendChild(desc);
             };
+
+            
 
             if (name == params.modelA) {
                 target_img.style.borderColor = "rgb(245 140 44)";
                 gridBox.prepend(target_img);
                 currentTarget = target_img;
+                target_img.click();
             } else {
                 gridBox.insertBefore(target_img, gridBox.lastElementChild);
             }
 
         }
-        // gui.add(params, 'modelA', Object.keys(models)).onChange(name => {
-        //     modelA = load_model(name, "A");
-        //     reset();
-        // });
-        // gui.add(params, 'modelB', Object.keys(models)).onChange(name => {
-        //     modelB = load_model(name, "B");
-        // });
         modelA = load_model(params.modelA, "A");
         modelB = load_model(params.modelB, "B");
         reset();
@@ -975,7 +984,6 @@ export function createDemo(divId, demo_type = "growing") {
         "7",
         "8",
         "9",
-        
     ];
 
     const growing_targets = [
