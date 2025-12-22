@@ -80,6 +80,55 @@ export function createDemo(divId, demo_type = "growing") {
     let last_cursor_style = 'default';
     let prevPos = [0, 0];
 
+    function update_ui() {
+        if ($('#trace_particles').checked != uniforms.plot_tracer) {
+            $('#trace_particles').checked = uniforms.plot_tracer;
+        }
+
+        if (params.runModel) {
+            $('#play').style.display = "none";
+            $('#pause').style.display = "inline";
+        } else {
+            $('#play').style.display = "inline";
+            $('#pause').style.display = "none";
+        }
+
+        if (params.speed != $('#speed').value) {
+            $('#speed').value = params.speed;
+            $('#speedLabel').innerHTML = ['1/8x', '1/4x', '1/2x', '1x', '2x', '4x', '8x'][params.speed + 3];
+        }
+
+        if (uniforms.particle_radius != parseFloat($('#particle_radius').value)) {
+            $('#particle_radius').value = uniforms.particle_radius;
+            $('#particleRadiusLabel').innerText = uniforms.particle_radius.toFixed(3);
+        }
+
+        if (uniforms.num_particles_log != parseInt($('#particle_count').value)) {
+            $('#particle_count').value = uniforms.num_particles_log;
+            $('#particleCountLabel').innerText = (uniforms.num_particles).toString();
+        }
+
+        $$('#brush_size input').forEach((sel, i) => {
+            if (uniforms.brush_size == 0.5 && i == 0) {
+                sel.checked = true;
+            } else if (uniforms.brush_size == 1.0 && i == 1) {
+                sel.checked = true;
+            } else if (uniforms.brush_size == 2.0 && i == 2) {
+                sel.checked = true;
+            }
+        });
+
+        $$('#brush_mode input').forEach((sel, i) => {
+            if (!uniforms.brush_enabled && i == 3) {
+                sel.checked = true;
+            } else if (uniforms.brush_enabled && uniforms.brush_mode == i) {
+                sel.checked = true;
+            }
+        });
+    }
+
+    update_ui();
+
 
     function init_event_listeners() {
         document.addEventListener('keydown', e => {
@@ -183,7 +232,9 @@ export function createDemo(divId, demo_type = "growing") {
                     }
                 }
             }
+            
         });
+        
 
         $$('#brush_mode input').forEach((sel, i) => {
             sel.onchange = () => {
@@ -193,7 +244,6 @@ export function createDemo(divId, demo_type = "growing") {
                     uniforms.brush_enabled = true;
                     uniforms.brush_mode = i;
                 }
-
             }
         });
 
