@@ -1,1 +1,1 @@
-# SelfOrg-NPA.github.io
+# Selforg-Particles.github.io
