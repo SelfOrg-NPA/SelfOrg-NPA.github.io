@@ -55,20 +55,11 @@
         MathJax.Hub.Config({tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}});
     </script>
 
-    <!--    <script src="./static/js/bulma-carousel.min.js"></script>-->
-    <!--    <script src="./static/js/bulma-slider.min.js"></script>-->
-    <script src="./static/js/index.js"></script>
-
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://distill.pub/template.v2.js"></script>
     <link rel="stylesheet" href="style.css">
     <script src="twgl.min.js"></script>
-
-
-    <script type="module" src=".demo.js"></script>
-
-
 
 
 </head>
@@ -532,17 +523,36 @@
 <script type="module">
     import { createDemo } from './demo.js'
 
-    createDemo('demo', "growing");
+    const canvas = document.getElementById('demo-canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const glsl = SwissGL(canvas);
 
+    let currentDemo = "growing";
+    let animation_id = createDemo(glsl, 'demo', "growing");
+    
+    
     document.getElementById('call-texture-demo').addEventListener('click', function () {
-        createDemo('demo', "texture");
+        // alert(glsl.animation_id);
+        if (currentDemo === "texture") {
+            return;
+        }
+        currentDemo = "texture";
+        glsl.reset();
+        
+        animation_id = createDemo(glsl, 'demo', "texture");
         document.getElementById('texture_demo_button').classList.add("highlight-wrap");
         document.getElementById('growing_demo_button').classList.remove("highlight-wrap");
 
     });
 
     document.getElementById('call-growing-demo').addEventListener('click', function () {
-        createDemo('demo', "growing");
+        if (currentDemo === "growing") {
+            return;
+        }
+        currentDemo = "growing";
+        glsl.reset();
+        animation_id = createDemo(glsl, 'demo', "growing");
         document.getElementById('texture_demo_button').classList.remove("highlight-wrap");
         document.getElementById('growing_demo_button').classList.add("highlight-wrap");
 

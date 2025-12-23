@@ -1,16 +1,13 @@
 
 
-export function createDemo(divId, demo_type = "growing") {
+export function createDemo(GLSL, divId, demo_type = "growing") {
 
     const root = document.getElementById(divId);
     const $ = q => root.querySelector(q);
     const $$ = q => root.querySelectorAll(q);
 
     const canvas = $("#demo-canvas");
-    canvas.width = 1024;
-    canvas.height = 1024;
-
-    const GLSL = SwissGL(canvas);
+    
     const glsl = (param, target) => GLSL({
         ...param, Inc: [`
         #define FOR2(V,A,B) for(ivec2 V=ivec2(A);V.y<(B).y;++V.y) for(V.x=ivec2(A).x;V.x<(B).x;++V.x)
@@ -66,11 +63,6 @@ export function createDemo(divId, demo_type = "growing") {
         state_noise: 0.0,
         position_noise: 0.0,
     }
-
-
-
-
-
 
     uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(uniforms.eps, 2));
     uniforms.gradient_coef = 10.0 / (Math.PI * Math.pow(uniforms.eps, 3));
@@ -149,6 +141,14 @@ export function createDemo(divId, demo_type = "growing") {
             }
         });
 
+        // Remove all event listeners first
+        canvas.onmousedown = null;
+        canvas.onmousemove = null;
+        canvas.onmouseup = null;
+        canvas.onwheel = null;
+        canvas.ontouchstart = null;
+        canvas.ontouchmove = null;
+
         canvas.onmousedown = e => {
             e.preventDefault();
             // left click
@@ -192,14 +192,14 @@ export function createDemo(divId, demo_type = "growing") {
             }
         });
 
-        $('#trace_particles').addEventListener('change', e => {
+        $('#trace_particles').onchange = e => {
             uniforms.plot_tracer = e.target.checked;
             uniforms.particle_radius = e.target.checked ? 0.02 : 0.04;
             uniforms.particle_radius *= Math.sqrt(4096 / uniforms.num_particles);
             $('#particle_radius').value = uniforms.particle_radius;
             $('#particleRadiusLabel').innerText = uniforms.particle_radius.toFixed(3);
 
-        });
+        };
 
         $('#play-pause').onclick = () => {
             params.runModel = !params.runModel;
@@ -991,7 +991,7 @@ export function createDemo(divId, demo_type = "growing") {
         `})
 
 
-        requestAnimationFrame(frame);
+        GLSL.animation_id = requestAnimationFrame(frame);
     }
 
 
@@ -1102,7 +1102,6 @@ export function createDemo(divId, demo_type = "growing") {
 
         // "flamingo",
     ];
-
 
 }
 
