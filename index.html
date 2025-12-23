@@ -529,7 +529,7 @@
     const glsl = SwissGL(canvas);
 
     let currentDemo = "growing";
-    let animation_id = createDemo(glsl, 'demo', "growing");
+    createDemo(glsl, 'demo', "growing");
     
     
     document.getElementById('call-texture-demo').addEventListener('click', function () {
@@ -540,7 +540,7 @@
         currentDemo = "texture";
         glsl.reset();
         
-        animation_id = createDemo(glsl, 'demo', "texture");
+        createDemo(glsl, 'demo', "texture");
         document.getElementById('texture_demo_button').classList.add("highlight-wrap");
         document.getElementById('growing_demo_button').classList.remove("highlight-wrap");
 
@@ -552,7 +552,7 @@
         }
         currentDemo = "growing";
         glsl.reset();
-        animation_id = createDemo(glsl, 'demo', "growing");
+        createDemo(glsl, 'demo', "growing");
         document.getElementById('texture_demo_button').classList.remove("highlight-wrap");
         document.getElementById('growing_demo_button').classList.add("highlight-wrap");
 
