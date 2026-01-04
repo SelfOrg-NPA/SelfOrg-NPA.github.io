@@ -14,10 +14,10 @@
         }
 
         canvas {
-            /* width: 100vw; 
-            height: 100vh; */
-            width: 1024px;
-            height: 1024px;
+            width: 100vw; 
+            height: 100vh;
+            /* width: 1024px;
+            height: 1024px; */
         }
     </style>
 </head>
@@ -185,7 +185,7 @@
             }
             if (e.key === 's') {
                 // Ensure capture uses the displayed canvas resolution.
-                GLSL.adjustCanvas();
+                // GLSL.adjustCanvas();
                 startCanvasRecording();
             }
             if (e.key === 'p') {
