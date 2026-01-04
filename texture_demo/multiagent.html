@@ -122,7 +122,7 @@
 
     const params = {
         runModel: true,
-        step_n: 4,
+        step_n: 1,
     };
     const uniforms = {
         zoom: 0.0,
@@ -183,7 +183,7 @@
             if (e.key === 'r') {
                 reset();
             }
-            if (e.key === 's') {
+            if (e.key === 's' && false) { // disable for now
                 // Ensure capture uses the displayed canvas resolution.
                 // GLSL.adjustCanvas();
                 startCanvasRecording();
