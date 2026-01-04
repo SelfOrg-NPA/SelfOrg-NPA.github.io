@@ -313,7 +313,8 @@
 
                         <div>
 
-                            <input type="range" id="epsilon" min="0.02" max="0.2" step="0.01" value="0.1"></br>$\epsilon
+                            <input type="range" id="epsilon" min="0.02" max="0.2" step="0.005"
+                                value="0.1"></br>$\epsilon
                             = $
                             <label id="epsilonLabel"></label>
                         </div>
@@ -520,7 +521,7 @@
 <script src="twgl.min.js"></script>
 
 <script src="dat.gui.min.js"></script>
-<script type="module">
+<!-- <script type="module">
     import { createDemo } from './demo.js'
 
     const canvas = document.getElementById('demo-canvas');
@@ -559,4 +560,55 @@
     });
 
 
+</script> -->
+
+
+<script type="module">
+    import { createDemo } from './demo.js'
+
+    const canvas = document.getElementById('demo-canvas');
+    canvas.width = 1024;
+    canvas.height = 1024;
+    const glsl = SwissGL(canvas);
+
+    const textureBtnWrap = document.getElementById('texture_demo_button');
+    const growingBtnWrap = document.getElementById('growing_demo_button');
+
+    function getInitialDemoFromHash() {
+        const h = (window.location.hash || '').replace('#', '').toLowerCase();
+        // alert(h);
+        if (h === 'texture') return 'texture';
+        if (h === 'growing') return 'growing';
+        return 'growing';
+    }
+
+    function setHighlight(demoName) {
+        if (demoName === 'texture') {
+            textureBtnWrap.classList.add('highlight-wrap');
+            growingBtnWrap.classList.remove('highlight-wrap');
+        } else {
+            textureBtnWrap.classList.remove('highlight-wrap');
+            growingBtnWrap.classList.add('highlight-wrap');
+        }
+    }
+
+    function InitializeDemo(tp, first = false) {
+        if (!first && currentDemo === tp) return;
+        currentDemo = tp;
+        glsl.reset();
+        createDemo(glsl, 'demo', tp);
+        setHighlight(tp);
+        window.location.hash = tp;
+    }
+
+    let currentDemo = getInitialDemoFromHash();
+    InitializeDemo(currentDemo, true);
+
+    document.getElementById('call-texture-demo').addEventListener('click', function () {
+        InitializeDemo('texture');
+    });
+
+    document.getElementById('call-growing-demo').addEventListener('click', function () {
+        InitializeDemo('growing');
+    });
 </script>

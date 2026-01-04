@@ -7,7 +7,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     const $$ = q => root.querySelectorAll(q);
 
     const canvas = $("#demo-canvas");
-    
+
     const glsl = (param, target) => GLSL({
         ...param, Inc: [`
         #define FOR2(V,A,B) for(ivec2 V=ivec2(A);V.y<(B).y;++V.y) for(V.x=ivec2(A).x;V.x<(B).x;++V.x)
@@ -28,6 +28,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
     const CHN = 16, C4 = CHN / 4;
     let models, modelA, modelB;
+    let modelAName, modelBName;
     let nca_grid, neighborhood, bbox, inv_rho;
     let sort_phase = 0;
     let step_count = 0;
@@ -50,7 +51,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         sigma: sigma0,
         seed_mode: demo_type == "growing" ? true : false,
         // sigma: 1.0,
-        viewR: 1.25,
+        // viewR: 1.25,
+        viewR: 1.1,
         viewC: [0.0, 0.0],
         brush_enabled: true,
         brush_mode: 1,
@@ -62,6 +64,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         bg_color: 0.0,
         state_noise: 0.0,
         position_noise: 0.0,
+        channel_idx: 4,
     }
 
     uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(uniforms.eps, 2));
@@ -121,9 +124,99 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
     update_ui();
 
+    function safeFilenamePart(s) {
+        return String(s ?? '')
+            .trim()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-zA-Z0-9_\-\.]/g, '_')
+            .slice(0, 120) || 'modelA';
+    }
+
+    function downloadCanvasPNG(filename) {
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    }
+
+    function render() {
+        const bg_color = uniforms.bg_color;
+        glsl({
+            state: nca_grid[0], Grid: nca_grid[0].size, ...uniforms,
+            Clear: [bg_color, bg_color, bg_color, 0.0],
+            inv_rho, neighborhood, Aspect: 'mean', ...uniforms,
+            Blend: 'd*(1-sa)+s',
+            VP: `
+            varying vec3 col;
+            if (channel_idx < 0.5) {
+                col = vec3(state(ID.xy, 0).xyz);
+            } else if (channel_idx < 1.5) {
+                col = vec3(state(ID.xy, 0).w, state(ID.xy, 1).xy);
+            } else if (channel_idx < 2.5) {
+                col = vec3(state(ID.xy, 1).zw, state(ID.xy, 2).x);
+            } else if (channel_idx < 3.5) {
+                col = vec3(state(ID.xy, 2).yzw);
+            } else {
+                col = vec3(state(ID.xy, 3).yzw);
+            }
+            col += 0.5;
+            //  = vec3(state(ID.xy, 3).yzw) + 0.5;
+            col = max(col, vec3(0.0));
+            col = min(col, vec3(1.0));
+            
+            float radius = particle_radius;
+            if (plot_tracer)
+                if (mod(floor(state(ID.xy, 4).z), 256.0) == 0.0)
+                    radius = particle_radius * 6.0;
+            vec2 pos = state(ID.xy, 4).xy;
+            VPos = vec4(((pos - viewC) + XY * radius) / viewR, 0.0, 1.0);
+        `,
+            FP: `
+            float intensity = exp(-dot(XY, XY) * 10.0);
+            FOut = vec4(col * intensity, intensity);
+            
+        `
+        })
+    }
+
+    async function runStepsAndSaveSnapshots(totalSteps = 2048) {
+        // Pause the live stepping loop while we do a deterministic batch.
+        const wasRunning = params.runModel;
+        params.runModel = false;
+        update_ui();
+
+        const checkpoints = new Set();
+        for (let s = 0; s <= totalSteps; s = (s === 0 ? 1 : s * 2)) checkpoints.add(s);
+
+        const namePart = safeFilenamePart(modelAName ?? params.modelA);
+        const save = async (stepIdx) => {
+            // Ensure we draw the most recent state before capturing.
+            render();
+            await new Promise(requestAnimationFrame);
+            downloadCanvasPNG(`${namePart}_step${stepIdx}.png`);
+            // Wait 20 ms to ensure the download has started before continuing.
+            await new Promise(resolve => setTimeout(resolve, 40));
+        };
+
+        if (checkpoints.has(0)) await save(0);
+
+        for (let i = 1; i <= totalSteps; ++i) {
+            update_index();
+            step_fast();
+            step_count++;
+            if (checkpoints.has(i)) await save(i);
+            
+        }
+
+        params.runModel = wasRunning;
+        update_ui();
+    }
+
 
     function init_event_listeners() {
-        document.addEventListener('keydown', e => {
+        document.addEventListener('keydown', async e => {
             if (e.key === 'r') {
                 reset();
             }
@@ -132,6 +225,13 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                     canvas.style.cursor = "grab";
                     last_cursor_style = canvas.style.cursor;
                 }
+            }
+            if (false && e.key === "n") { // disabled for now
+                // Run a fixed batch and export snapshots at powers of two.
+                await runStepsAndSaveSnapshots(512);
+            }
+            if (e.key === "c") {
+                uniforms.channel_idx = (uniforms.channel_idx + 1) % 5;
             }
         });
         document.addEventListener("keyup", e => {
@@ -232,9 +332,9 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                     }
                 }
             }
-            
+
         });
-        
+
 
         $$('#brush_mode input').forEach((sel, i) => {
             sel.onchange = () => {
@@ -291,6 +391,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             $('#particleCountLabel').innerText = (uniforms.num_particles).toString();
             let base_radius = uniforms.plot_tracer ? 0.02 : 0.04;
             uniforms.particle_radius = base_radius * Math.sqrt(4096 / uniforms.num_particles);
+            // uniforms.particle_radius = base_radius * Math.sqrt(4096 / uniforms.num_particles) * 0.5;
             $('#particle_radius').value = uniforms.particle_radius;
             $('#particleRadiusLabel').innerText = uniforms.particle_radius.toFixed(3);
             reset();
@@ -364,7 +465,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         $('#origtex').innerHTML = '';
         $('#origtex').style = '';
         $('#texhinttext').innerHTML = '';
-        
+
         const targets = demo_type == "growing" ? growing_targets : texture_targets;
         for (const name of targets) {
             if (!(name in models)) continue;
@@ -393,6 +494,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                 if (!window.matchMedia('(min-width: 500px)').matches && navigator.userAgent.includes("Chrome")) {
                     target_img.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" })
                 }
+                params.modelA = name;
+                modelAName = name;
                 modelA = load_model(name, "A");
                 reset();
                 $("#origtex").style.background = "url('" + media_path + "')";
@@ -406,7 +509,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                 $("#texhinttext").appendChild(desc);
             };
 
-            
+
 
             if (name == params.modelA) {
                 target_img.style.borderColor = "rgb(245 140 44)";
@@ -418,6 +521,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             }
 
         }
+        modelAName = params.modelA;
+        modelBName = params.modelB;
         modelA = load_model(params.modelA, "A");
         modelB = load_model(params.modelB, "B");
         reset();
@@ -946,14 +1051,13 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         GLSL.adjustCanvas();
         time /= 1000.0;
         if (params.runModel) {
-            let step_n;
             if (params.speed <= 0) {
-                step_n = (frame_count % [1, 2, 4, 8][-params.speed]) == 0 ? 1 : 0;
+                params.step_n = (frame_count % [1, 2, 4, 8][-params.speed]) == 0 ? 1 : 0;
                 frame_count += 1;
             } else {
-                step_n = [1, 2, 4, 8][params.speed];
+                params.step_n = [1, 2, 4, 8][params.speed];
             }
-            for (let i = 0; i < step_n; ++i) {
+            for (let i = 0; i < params.step_n; ++i) {
                 // step();
                 step_count++;
                 if (i % 1 == 0)
@@ -965,30 +1069,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             }
 
         }
-        const bg_color = uniforms.bg_color;
-        glsl({
-            state: nca_grid[0], Grid: nca_grid[0].size, ...uniforms,
-            Clear: [bg_color, bg_color, bg_color, 0.0],
-            inv_rho, neighborhood, Aspect: 'mean', ...uniforms,
-            Blend: 'd*(1-sa)+s',
-            // Blend:'d + s', 
-            VP: `
-            varying vec3 col = vec3(state(ID.xy, 3).yzw) + 0.5;
-            col = max(col, vec3(0.0));
-            col = min(col, vec3(1.0));
-            
-            float radius = particle_radius;
-            if (plot_tracer)
-                if (mod(floor(state(ID.xy, 4).z), 256.0) == 0.0)
-                    radius = particle_radius * 6.0;
-            vec2 pos = state(ID.xy, 4).xy;
-            VPos = vec4(((pos - viewC) + XY * radius) / viewR, 0.0, 1.0);
-        `,
-            FP: `
-            float intensity = exp(-dot(XY, XY) * 10.0);
-            FOut = vec4(col * intensity, intensity);
-            
-        `})
+        render();
 
 
         GLSL.animation_id = requestAnimationFrame(frame);
@@ -1051,7 +1132,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         "freezing_face",
         "grinning_face_with_one_large_and_one_small_eye",
         "eyes",
-                "lizard",
+        "lizard",
         "ghost",
         "lady_beetle",
         "octopus",
@@ -1086,7 +1167,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         "ringed_planet",
         "earth_globe_europe_africa",
         "white_sun_behind_cloud_with_rain",
-        
+
         "red_apple",
         "cherries",
         "avocado",
@@ -1098,7 +1179,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         "garlic",
         "carrot",
         "ear_of_maize",
-        
+
 
         // "flamingo",
     ];
