@@ -183,7 +183,7 @@
             if (e.key === 'r') {
                 reset();
             }
-            if (e.key === 's') {
+            if (e.key === 's' && false) { // disable for now
                 // Ensure capture uses the displayed canvas resolution.
                 GLSL.adjustCanvas();
                 startCanvasRecording();
@@ -764,7 +764,7 @@
         
         const bg_color = uniforms.bg_color;
         glsl({state: nca_grid[0], Grid: nca_grid[0].size, ...uniforms,
-            Clear: [bg_color, bg_color, bg_color, 1.0],
+            Clear: [bg_color, bg_color, bg_color, isRecording ? 1.0 : 0.0],
             inv_rho, neighborhood, Aspect:'mean', ...uniforms,
             Blend:'d*(1-sa)+s', 
             // Blend:'d + s', 

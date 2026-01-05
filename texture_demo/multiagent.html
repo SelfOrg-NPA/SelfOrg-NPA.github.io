@@ -763,7 +763,8 @@
         
         const bg_color = uniforms.bg_color;
         glsl({state: nca_grid[0], Grid: nca_grid[0].size, ...uniforms,
-            Clear: [bg_color, bg_color, bg_color, 0.0],
+            Clear: [bg_color, bg_color, bg_color, isRecording ? 1.0 : 0.0],
+            // If we clear with 0.0 we will have quality issues with webm recording
             inv_rho, neighborhood, Aspect:'mean', ...uniforms,
             Blend:'d*(1-sa)+s', 
             // Blend:'d + s', 
