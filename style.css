@@ -496,6 +496,11 @@ input[type="radio"] {
     cursor: default;
 }
 
+.enabled {
+    background: rgb(160, 5, 5);
+    cursor: pointer;
+}
+
 /* radio button groups */
 
 .button-group {
@@ -638,7 +643,7 @@ d-figure > figure {
 }
 
 .toggler-wrapper.style-19 input[type="checkbox"]:checked+.toggler-slider:after {
-  content: 'Trace=True';
+  content: 'Draw:Circle';
 }
 
 .toggler-wrapper.style-19 input[type="checkbox"]:checked+.toggler-slider .toggler-knob {
@@ -653,7 +658,7 @@ d-figure > figure {
 }
 
 .toggler-wrapper.style-19 .toggler-slider:after {
-  content: 'Trace=False';
+  content: 'Draw:Gaussian';
   position: relative;
   top: 1px;
   left: 50px;

@@ -123,7 +123,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         brush_enabled: true,
         brush_mode: 1,
         brush_size: 1.0,
-        particle_radius: 0.04,
+        particle_radius: 0.03,
         num_particles_log: 12, // 2^12 = 4096
         num_particles: 4096,
         plot_tracer: false,
@@ -131,6 +131,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         state_noise: 0.0,
         position_noise: 0.0,
         channel_idx: 4,
+        draw_as_circle: true,
     }
 
     uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(uniforms.eps, 2));
@@ -142,9 +143,11 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     let prevPos = [0, 0];
 
     function update_ui() {
-        if ($('#trace_particles').checked != uniforms.plot_tracer) {
-            $('#trace_particles').checked = uniforms.plot_tracer;
+        if ($('#draw_mode').checked != uniforms.draw_as_circle) {
+            $('#draw_mode').checked = uniforms.draw_as_circle;
         }
+
+        $('#trace').classList.toggle('enabled', uniforms.plot_tracer);
 
         if (params.runModel) {
             $('#play').style.display = "none";
@@ -241,6 +244,9 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         `,
             FP: `
             float intensity = exp(-dot(XY, XY) * 10.0);
+            if (draw_as_circle) {
+                intensity = intensity < 0.5 ? 0.0 : 1.0;    
+            }
             FOut = vec4(col * intensity, intensity);
             
         `
@@ -370,12 +376,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             }
         });
 
-        $('#trace_particles').onchange = e => {
-            uniforms.plot_tracer = e.target.checked;
-            uniforms.particle_radius = e.target.checked ? 0.02 : 0.04;
-            uniforms.particle_radius *= Math.sqrt(4096 / uniforms.num_particles);
-            $('#particle_radius').value = uniforms.particle_radius;
-            $('#particleRadiusLabel').innerText = uniforms.particle_radius.toFixed(3);
+        $('#draw_mode').onchange = e => {
+            uniforms.draw_as_circle = e.target.checked;
 
         };
 
@@ -397,6 +399,15 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         $('#zoomOut').onclick = () => {
             uniforms.viewR = Math.min(10.0, uniforms.viewR * 1.25);
         }
+
+        $('#trace').onclick = () => {
+            uniforms.plot_tracer = !uniforms.plot_tracer;
+            $('#trace').classList.toggle('enabled', uniforms.plot_tracer);
+            uniforms.particle_radius = uniforms.plot_tracer ? 0.015 : 0.03;
+            uniforms.particle_radius *= Math.sqrt(4096 / uniforms.num_particles);
+            $('#particle_radius').value = uniforms.particle_radius;
+            $('#particleRadiusLabel').innerText = uniforms.particle_radius.toFixed(3);
+        };
 
         $$('#brush_size input').forEach((sel, i) => {
             sel.onchange = () => {
@@ -467,7 +478,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             uniforms.num_particles_log = pow;
             uniforms.num_particles = 1 << pow;
             $('#particleCountLabel').innerText = (uniforms.num_particles).toString();
-            let base_radius = uniforms.plot_tracer ? 0.02 : 0.04;
+            let base_radius = uniforms.plot_tracer ? 0.015 : 0.03;
             uniforms.particle_radius = base_radius * Math.sqrt(4096 / uniforms.num_particles);
             // uniforms.particle_radius = base_radius * Math.sqrt(4096 / uniforms.num_particles) * 0.5;
             $('#particle_radius').value = uniforms.particle_radius;
