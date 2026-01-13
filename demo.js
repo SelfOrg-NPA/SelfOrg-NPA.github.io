@@ -304,9 +304,9 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                     last_cursor_style = canvas.style.cursor;
                 }
             }
-            if (false && e.key === "n") { // disabled for now
+            if (true && e.key === "n") { // disabled for now
                 // Run a fixed batch and export snapshots at powers of two.
-                await runStepsAndSaveSnapshots(512);
+                await runStepsAndSaveSnapshots(1024);
             }
             if (e.key === "c") {
                 uniforms.channel_idx = (uniforms.channel_idx + 1) % 5;
