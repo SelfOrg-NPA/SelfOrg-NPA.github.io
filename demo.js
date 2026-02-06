@@ -212,13 +212,15 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
     function render() {
         const bg_color = uniforms.bg_color;
+        let grid_size = [nca_grid.size[0], nca_grid.size[1], 2];
         glsl({
-            state: nca_grid[0], Grid: nca_grid[0].size, ...uniforms,
+            state: nca_grid[0], Grid: grid_size, ...uniforms,
             Clear: [bg_color, bg_color, bg_color, isRecording ? 1.0 : 0.0],
             inv_rho, neighborhood, Aspect: 'mean', ...uniforms,
             Blend: 'd*(1-sa)+s',
             VP: `
             varying vec3 col;
+            varying float outer;
             if (channel_idx < 0.5) {
                 col = vec3(state(ID.xy, 0).xyz);
             } else if (channel_idx < 1.5) {
@@ -235,15 +237,32 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             col = max(col, vec3(0.0));
             col = min(col, vec3(1.0));
             
-            float radius = particle_radius;
+            float radius;
+            if (ID.z == 0)
+                radius = particle_radius;
+            else
+                radius = 0.0;
+            outer = 0.0;
             if (plot_tracer)
                 if (mod(floor(state(ID.xy, 4).z), 256.0) == 0.0)
-                    radius = particle_radius * 6.0;
+                    if (ID.z == 0)
+                        radius = particle_radius * 6.0;
+                    else {
+                        radius = eps * 2.0;
+                        col = vec3(1.0, 0.0, 0.0);
+                        outer = 1.0;
+                    }
+                        
             vec2 pos = state(ID.xy, 4).xy;
             VPos = vec4(((pos - viewC) + XY * radius) / viewR, 0.0, 1.0);
         `,
             FP: `
-            float intensity = exp(-dot(XY, XY) * 10.0);
+            float intensity;
+            if (outer < 0.5)
+                intensity = exp(-dot(XY, XY) * 10.0);
+            else // ring like structure
+                intensity = exp(-pow((length(XY) - 0.5) * eps * 400.0, 2.0));
+                
             if (draw_as_circle) {
                 intensity = intensity < 0.5 ? 0.0 : 1.0;    
             }
