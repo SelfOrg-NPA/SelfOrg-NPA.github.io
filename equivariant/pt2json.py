@@ -14,7 +14,7 @@ def np2json(a):
 
 def export_model(folder):
     model = {}
-    data = torch.load(f"{folder}/npa.pth", map_location="cpu")
+    data = torch.load(f"{folder}/model.pth", map_location="cpu")
     for k, v in data.items():
         v = v.numpy()
         if k not in ["eps0", "N0", "alpha"]:
@@ -44,10 +44,11 @@ def export_model(folder):
 
 if __name__ == "__main__":
     models = {}
-    for folder in sorted(glob("models/*")):
+    
+    for folder in sorted(glob("growing_demo/models/*")):
         name = folder.split("/")[-1]
         print(name)
         models[name] = export_model(folder)
     if len(models) > 0:
-        with open("models.json", "w") as f:
+        with open("growing_demo/models.json", "w") as f:
             json.dump(models, f)

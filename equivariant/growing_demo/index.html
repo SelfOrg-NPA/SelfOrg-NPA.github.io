@@ -61,6 +61,7 @@
     };
     const uniforms = {
         zoom: 0.0,
+        dt: 1.0,
         eps: 0.1,
         sigma: 0.2,
         // sigma: 1.0,
@@ -90,13 +91,14 @@
     gui.add(uniforms, 'brush_mode', { "Paint": 0, "Cut": 1, "Pull": 2});
     // gui.add(uniforms, 'cut_size', 0.01, 0.2, 0.005).name('Cut Size');
     gui.add(uniforms, 'particle_radius', 0.005, 0.2, 0.005).name('Particle Size');
-    // gui.add(uniforms, 'state_noise', 0.0, 0.5, 0.001).name('State Noise');
+    gui.add(uniforms, 'dt', 0.0, 2.0, 0.001).name('dt');
+    gui.add(uniforms, 'state_noise', 0.0, 0.5, 0.001).name('State Noise');
     // gui.add(uniforms, 'position_noise', 0.0, 0.5, 0.001).name('Position Noise');
     gui.add(uniforms, 'eps', 0.02, 0.2, 0.005).onChange(v => {
         uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(v, 2));
         uniforms.gradient_coef = 10.0 / (Math.PI * Math.pow(v, 3));
         uniforms.particle_radius = 0.04 * v / 0.1;
-        reset();
+        // reset();
     });
     gui.add(uniforms, 'num_particles_log', 10, 16, 1).name('N Particles (log2)').onChange(v => {
         reset();
@@ -657,6 +659,13 @@
                 for (int c=0; c<C4; ++c)
                     ds[c] = vec4(mlp_out[c*4], mlp_out[c*4+1], mlp_out[c*4+2], mlp_out[c*4+3]);
 
+                if (state_noise > 0.0) {
+                    ds[0] += (hash(ivec4(I, 0, seed)) - 0.5) * state_noise;
+                    ds[1] += (hash(ivec4(I, 1, seed)) - 0.5) * state_noise;
+                    ds[2] += (hash(ivec4(I, 2, seed)) - 0.5) * state_noise;
+                    ds[3] += (hash(ivec4(I, 3, seed)) - 0.5) * state_noise;
+                }
+
                 // 5. Gated vector output: v_out = (v_hidden * gate) @ W_out
                 vec2 dx = vec2(0.0);
                 for (int kk=0; kk<K_HIDDEN; ++kk) {
@@ -665,11 +674,11 @@
                 }
 
                 // Apply updates
-                FOut  = state_i[0] + ds[0];
-                FOut1 = state_i[1] + ds[1];
-                FOut2 = state_i[2] + ds[2];
-                FOut3 = state_i[3] + ds[3];
-                FOut4 = Src(I,C4) + vec4(alpha * eps * dx / (1.0 + length(dx)), 0.0, 0.0);
+                FOut  = state_i[0] + dt * ds[0];
+                FOut1 = state_i[1] + dt * ds[1];
+                FOut2 = state_i[2] + dt * ds[2];
+                FOut3 = state_i[3] + dt * ds[3];
+                FOut4 = Src(I,C4) + vec4(dt * alpha * eps * dx / (1.0 + length(dx)), 0.0, 0.0);
             }
         `
         }, nca_grid);

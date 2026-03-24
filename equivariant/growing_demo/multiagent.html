@@ -120,7 +120,7 @@
         uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(v, 2));
         uniforms.gradient_coef = 10.0 / (Math.PI * Math.pow(v, 3));
         uniforms.particle_radius = 0.02 * v / 0.1;
-        reset();
+        // reset();
     });
     gui.add(uniforms, 'num_particles_log', 10, 16, 1).name('N Particles (log2)').onChange(v => {
         reset();
@@ -389,6 +389,7 @@
                 float particle_idx = float(I.x + I.y * ViewSize.x) + 0.5;
                 
                 float model_idx = float((x_bin + y_bin * 3) % ${ncaAll.N_models});
+                // float model_idx = 0.5;
                 FOut4 = vec4(pos, particle_idx, model_idx);
             }
             
