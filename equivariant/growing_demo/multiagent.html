@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equivariant NPA — Multi-Agent Demo</title>
+    <script src="../swissgl.js"></script>
+    <script src="../dat.gui.min.js"></script>
+    <script src="https://webgl2fundamentals.org/webgl/resources/m4.js"></script>
+    <style>
+        body {
+            background-color: black;
+        }
+
+        canvas {
+            width: 1024px;
+            height: 1024px;
+        }
+    </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<script>
+    const $ = s => document.querySelector(s);
+    const canvas = $("#c");
+
+    // ---- Recording boilerplate ----
+    let mediaRecorder;
+    let recordedChunks = [];
+    let isRecording = false;
+
+    function startCanvasRecording() {
+        const stream = canvas.captureStream(30);
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'recording.webm'; a.click();
+            URL.revokeObjectURL(url);
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        console.log('Recording started');
+    }
+
+    function stopCanvasRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            isRecording = false;
+            console.log('Recording stopped');
+        }
+    }
+    // ---- End recording boilerplate ----
+
+    const GLSL = SwissGL(canvas);
+    const glsl = (param, target) => GLSL({...param, Inc: [`
+            #define FOR2(V,A,B) for(ivec2 V=ivec2(A);V.y<(B).y;++V.y) for(V.x=ivec2(A).x;V.x<(B).x;++V.x)
+            bool box_intersects(vec4 a, vec4 b) {return a.x<b.z && a.y<b.w && b.x<a.z && b.y<a.w;}
+            vec2 log_normalize(vec2 v) {
+                float l = length(v);
+                if (l > 0.0) return log(l + 1.0) * normalize(v);
+
+                return vec2(0.0);
+            }
+            float cross2d(vec2 a, vec2 b) {
+                return a.x * b.y - a.y * b.x;
+            }
+
+            
+        `].concat(param.Inc || [])}, target);
+    const gui = new dat.GUI();
+
+    const CHN = 16, C4 = CHN / 4;
+    let modelsAll, ncaAll;
+
+    let nca_grid, neighborhood, bbox, inv_rho;
+    let sort_phase = 0;
+    let step_count = 0;
+
+
+    const params = {
+        runModel: true,
+        step_n: 4,
+    };
+    const uniforms = {
+        zoom: 0.0,
+        eps: 0.1,
+        sigma: 0.2,
+        viewR: 4.0,
+        viewC: [0.0, 0.0],
+        brush_enabled: true,
+        brush_mode: 1,
+        cut_size: 0.03,
+        particle_radius: 0.05,
+        num_particles_log: 12, // 2^12 = 4096
+        plot_tracer: false,
+        bg_color: 0.0,
+        state_noise: 0.0,
+        position_noise: 0.0,
+    }
+    uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(uniforms.eps, 2));
+    uniforms.gradient_coef = 10.0 / (Math.PI * Math.pow(uniforms.eps, 3));
+
+    
+    let last_cursor_style = 'default';
+    let prevPos = [0, 0];
+
+
+    gui.add(params, 'runModel');
+    gui.add(params, 'step_n', 0, 64, 1);
+    gui.add(uniforms, 'brush_enabled').name('Enable Brush');
+    gui.add(uniforms, 'brush_mode', { "Paint": 0, "Cut": 1, "Pull": 2, "Graft": 3});
+    gui.add(uniforms, 'particle_radius', 0.005, 0.2, 0.005).name('Particle Size');
+    gui.add(uniforms, 'eps', 0.02, 0.2, 0.005).onChange(v => {
+        uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(v, 2));
+        uniforms.gradient_coef = 10.0 / (Math.PI * Math.pow(v, 3));
+        uniforms.particle_radius = 0.02 * v / 0.1;
+        // reset();
+    });
+    gui.add(uniforms, 'num_particles_log', 10, 16, 1).name('N Particles (log2)').onChange(v => {
+        reset();
+        gui.updateDisplay();
+    });
+    gui.add(uniforms, 'plot_tracer').name('Tracer Particles');
+    gui.add(uniforms, 'bg_color', 0.0, 1.0, 0.01).name('Background Color');
+    // Add a button that calls the step function
+    gui.add({next : () => {
+        for (let i = 0; i < params.step_n; ++i) {
+            update_index();
+        step_fast();
+        }
+        
+    }}, 'next').name('Step');
+
+    function init_event_listeners() {
+        document.addEventListener('keydown', e => {
+            if (e.key === 'r') {
+                reset();
+            }
+            if (e.key === 's' && false) { // disable for now
+                GLSL.adjustCanvas();
+                startCanvasRecording();
+            }
+            if (e.key === 'p') {
+                stopCanvasRecording();
+            }
+            if (e.key === " ") {
+                params.runModel = !params.runModel;
+                gui.updateDisplay(); 
+            }
+            if (e.key === "Shift") {
+                if (canvas.style.cursor != "grabbing") {
+                    canvas.style.cursor = "grab";
+                    last_cursor_style = canvas.style.cursor;
+                }
+            }
+        });
+        document.addEventListener("keyup", e => {
+            if (e.key === 'Shift') {
+                canvas.style.cursor = "default";
+                last_cursor_style = canvas.style.cursor;
+            }
+        });
+
+        canvas.onmousedown = e => {
+            e.preventDefault();
+            // left click
+            if (e.buttons == 1) {
+                if (e.shiftKey) {
+                    canvas.style.cursor = "grabbing";
+                } else {
+                    canvas.style.cursor = 'pointer';
+                }
+                click(getMousePos(e), e, true);
+            }
+        }
+        canvas.onmousemove = e => {
+            e.preventDefault();
+            if (e.buttons == 1) {
+                click(getMousePos(e), e, false);
+            }
+        }
+        canvas.onmouseup = e => {
+            e.preventDefault();
+            canvas.style.cursor = last_cursor_style;
+        }
+
+        // Zoom with mouse wheel
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const zoomFactor = Math.exp(e.deltaY * 0.001);
+            const oldR = uniforms.viewR;
+            const newR = Math.min(10.0, Math.max(0.1, oldR * zoomFactor));
+            uniforms.viewR = newR;
+        }, { passive: false });
+
+        canvas.addEventListener("touchstart", e => {
+            e.preventDefault();
+            click(getTouchPos(e.changedTouches[0]), e, true);
+        });
+        canvas.addEventListener("touchmove", e => {
+            e.preventDefault();
+            for (const t of e.touches) {
+                click(getTouchPos(t), e, false);
+            }
+        });
+
+    }
+
+    function getMousePos(e) {
+        const gridX = e.offsetX / canvas.clientWidth;
+        const gridY = e.offsetY / canvas.clientHeight;
+        return [gridX, gridY];
+    }
+
+    function getTouchPos(touch) {
+        const rect = canvas.getBoundingClientRect();
+        const gridX = (touch.clientX - rect.left) / canvas.clientWidth;
+        const gridY = (touch.clientY - rect.top) / canvas.clientHeight;
+        return [gridX, gridY];
+    }
+
+    function click(pos, e, first_touch = false) {
+        const [x, y] = pos;
+        const [px, py] = prevPos;
+        prevPos = pos;
+
+    
+        // Adjust with the aspect ratio
+        const c = 0.5 * (canvas.clientWidth + canvas.clientHeight);
+        
+        const x1 = (x * 2.0 - 1.0) * (canvas.clientWidth / c);
+        const y1 = -(y * 2.0 - 1.0) * (canvas.clientHeight / c);
+        const x0 = (px * 2.0 - 1.0) * (canvas.clientWidth / c);
+        const y0 = -(py * 2.0 - 1.0) * (canvas.clientHeight / c);
+        
+        // If Shift is held OR brush disabled, use drag to pan the view
+        if (e.shiftKey || !uniforms.brush_enabled) {
+            if (!first_touch) {
+                const dx = x1 - x0;
+                const dy = y1 - y0;
+                uniforms.viewC[0] -= dx * uniforms.viewR;
+                uniforms.viewC[1] -= dy * uniforms.viewR;
+            }
+            return;
+        }
+
+        let brush_mode = uniforms.brush_mode;
+
+        if (brush_mode == 1 && first_touch) {
+            // In cut mode, do not apply brush on first touch
+            return;
+        }
+
+        brush(x0, y0, x1, y1, brush_mode);
+        
+        
+
+
+    }
+
+    init_event_listeners();
+
+
+    async function init() {
+        const response = await fetch('./models_all.json');
+        modelsAll = await response.json();
+
+        for (const k in modelsAll) {
+            if (k == 'alpha' || k == "eps0" || k == "N0") continue;
+            const src = modelsAll[k];
+            src.data = new Float32Array(
+                Uint8Array.from(atob(src.data64), c => c.charCodeAt(0)).buffer);
+            delete src.data64;
+        }
+        
+        ncaAll = load_all_models();
+        reset();
+        frame();
+    }
+
+    init();
+
+    function load_all_models() {
+        const N_models = modelsAll['W_hidden'].shape[0];
+        const k_in = modelsAll['W_hidden'].shape[1];
+        const k_hidden = modelsAll['W_hidden'].shape[2] / 4;
+        const k_out = modelsAll['W_out'].shape[2] / 4;
+        const mlp_hidden = modelsAll['w1.bias'].shape[1];
+        const mlp_ci = modelsAll['w1.weight'].shape[2];   // padded MLP input dim
+        const mlp_out = modelsAll['w2.bias'].shape[1];
+        const mlp_ch_w2 = modelsAll['w2.weight'].shape[2]; // w2 last dim (padded)
+
+        const ncaAll = {
+            'N_models': N_models,
+
+            ['WhAll']: glsl({}, {
+                size: [k_hidden, k_in * N_models], format: 'rgba32f',
+                data: modelsAll['W_hidden'].data, tag: 'WhAll'
+            }),
+            ['WoAll']: glsl({}, {
+                size: [k_out, k_hidden * N_models], format: 'rgba32f',
+                data: modelsAll['W_out'].data, tag: 'WoAll'
+            }),
+            ['w1All']: glsl({}, {
+                size: [mlp_ci / 4, mlp_hidden * N_models], format: 'rgba32f',
+                data: modelsAll['w1.weight'].data, tag: 'w1All'
+            }),
+            ['b1All']: glsl({}, {
+                size: [mlp_hidden, N_models], format: 'r32f',
+                data: modelsAll['w1.bias'].data, tag: 'b1All'
+            }),
+            ['w2All']: glsl({}, {
+                size: [mlp_ch_w2 / 4, mlp_out * N_models], format: 'rgba32f',
+                data: modelsAll['w2.weight'].data, tag: 'w2All'
+            }),
+            ['b2All']: glsl({}, {
+                size: [mlp_out, N_models], format: 'r32f',
+                data: modelsAll['w2.bias'].data, tag: 'b2All'
+            }),
+        };
+
+        ncaAll['Inc'] = `
+                const float alpha = ${modelsAll['alpha'].toFixed(4)};
+                const float eps0 = ${modelsAll['eps0'].toFixed(4)};
+                const float N0 = ${modelsAll['N0'].toFixed(4)};
+                const int K_IN = ${k_in};
+                const int K_HIDDEN = ${k_hidden};
+                const int K_OUT = ${k_out};
+                const int MLP_HIDDEN = ${mlp_hidden};
+                const int MLP_OUT = ${mlp_out};
+                const int CHN = ${CHN};
+
+                float smoothing_kernel(vec2 r, float eps) {
+                    float d2 = dot(r, r);
+                    float q = 1.0 - d2 / (eps * eps);
+                    if (q > 0.0) return q * q * q;                
+                    return 0.0;
+                }
+
+                vec2 gradient_kernel(vec2 r, float eps) {
+                    float d = length(r) / eps;
+                    if (d == 0.0 || d >= 1.0) return vec2(0.0);
+                    return 3.0 * (1.0 - d) * (1.0 - d) * normalize(r);
+                }
+            `
+
+        return ncaAll;
+    }
+
+    function reset() {
+        const m = Math.ceil(uniforms.num_particles_log / 2);
+        const n = Math.ceil(uniforms.num_particles_log - m);
+        const H = 1 << m;
+        const W = 1 << n;
+
+        nca_grid = glsl({
+            seed: Math.random() * 213.512, ...uniforms, ...ncaAll, FP: `
+            vec2 uniform_seed(vec3 u) {
+                return (u.xy - 0.5) * 2.0;
+            }
+
+            vec2 gaussian_seed(vec3 u) {
+                vec2 q = clamp(u.xy, 1e-7, 1.0 - 1e-7);
+                float r = sqrt(-2.0 * log(q.x));
+                float theta = 2.0 * PI * q.y;
+                return r * vec2(cos(theta), sin(theta));
+            }
+
+            vec2 circular_seed(vec3 u) {
+                float r = sqrt(u.x);
+                float theta = 2.0 * PI * u.y;
+                return r * vec2(cos(theta), sin(theta));
+            }
+            
+
+            void fragment() 
+            {
+                FOut = FOut1 = FOut2 = FOut3 = vec4(0);
+                int x_bin = I.x * 3 / ViewSize.x;
+                int y_bin = I.y * 3 / ViewSize.y;
+                vec2 pos = circular_seed(hash(ivec3(I, seed))) * sigma * eps / eps0;
+                pos += vec2(float(x_bin), float(y_bin))  * eps / eps0 * 2.0 - vec2(2.0);
+                float particle_idx = float(I.x + I.y * ViewSize.x) + 0.5;
+                
+                float model_idx = float((x_bin + y_bin * 3) % ${ncaAll.N_models});
+                // float model_idx = 0.5;
+                FOut4 = vec4(pos, particle_idx, model_idx);
+            }
+            
+        `
+        }, {size: [3 * H, 3 * W], layern: C4 + 1, format: 'rgba32f', story: 2, tag: 'grid'});
+        let sort_steps = nca_grid.size[0] * nca_grid.size[1];
+        sort_steps = 4 * Math.log2(sort_steps) ** 2;
+        for (let i = 0; i < sort_steps; ++i) {
+            sort_index();
+        }
+        update_index();
+    }
+
+    function brush(x0, y0, x1, y1, brush_mode) {
+        if (brush_mode == 1) {
+            glsl({
+            x0, y0, x1, y1, ...uniforms, seed: Math.random() * 4123, FP: `
+                FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
+                vec2 x = Src(I,4).xy;
+                // Account for view center/scale: mouse in world coords
+                vec2 p0 = vec2(x0, y0) * viewR + viewC;
+                vec2 p1 = vec2(x1, y1) * viewR + viewC;
+                vec2 mouse_path = p1 - p0;
+                float path_length = length(mouse_path);
+                if (path_length > 1e-3) {
+                    vec2 n = normalize(vec2(-mouse_path.y, mouse_path.x));
+                    vec2 r = x - p0;
+                    float side = cross2d(mouse_path, r);
+                    float distance_to_path = abs(dot(n, r));
+                    bool cut = distance_to_path < cut_size;
+                    // Check to see if the projection of x onto mouse_path is within the segment
+                    float proj = dot(mouse_path, r) / path_length;
+                    cut = cut && proj >= 0.0 && proj <= path_length;
+
+                    if (cut) {
+                        float wiggle =  hash(ivec3(I, seed)).x;
+                        x += n * 0.04 * wiggle * sign(side);
+                    }
+                }
+                FOut4.xy = x;
+            `
+            }, nca_grid);
+            
+        } else if (brush_mode == 0) {
+            glsl({
+                ...uniforms, x_pos: x1, y_pos: y1, FP: `
+                FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
+                // Click position in world coordinates
+                vec2 click_pos = vec2(x_pos, y_pos) * viewR + viewC;
+                vec2 pos = Src(I,4).xy;
+                float dist = length(pos - click_pos);
+                if (dist < 0.05) {
+                    FOut = FOut1 = FOut2 = FOut3 = vec4(0.0);
+                }
+            `
+            }, nca_grid);
+        } else if (brush_mode == 2) {
+            // Pull brush: attract particles toward click_pos with noise and falloff
+            glsl({
+                ...uniforms, x_pos: x1, y_pos: y1, seed: Math.random() * 4123, FP: `
+                FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
+                // Click position in world coordinates
+                vec2 click_pos = vec2(x_pos, y_pos) * viewR + viewC;
+                vec2 pos = Src(I,4).xy;
+                vec2 dir = click_pos - pos;
+                float dist = length(dir);
+                if (dist > 0.0) {
+                    vec2 ndir = dir / dist;
+                    float falloff = exp(-dist * 30.0); // stronger near the click
+                    float strength = 0.1 * falloff;    // small step to avoid collapse
+                    vec2 rnd = hash(ivec3(I, seed)).yz * 2.0 - 1.0;
+                    vec2 jitter = (vec2(-ndir.y, ndir.x) * rnd.x + ndir * rnd.y) * 0.2 * falloff;
+                    pos += ndir * strength + jitter * 0.0;
+                    FOut4.xy = pos;
+                }
+            `
+            }, nca_grid);
+        } else if (brush_mode == 3) {
+            // Graft brush: set model index within radius
+            glsl({
+                ...uniforms, x_pos: x1, y_pos: y1, FP: `
+                FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
+                vec2 click_pos = vec2(x_pos, y_pos) * viewR + viewC;
+                vec2 pos = Src(I,4).xy;
+                float dist = length(pos - click_pos);
+                if (dist < 0.05) {
+                    FOut4.w = 1.0;
+                }
+            `
+            }, nca_grid);
+        }        
+    }
+
+    // Adapted from Large Lenia Implementation in Swissgl
+    function sort_index() {
+        glsl({rc: sort_phase & 1, eo: (sort_phase >> 1) & 1, FP: `
+        uniform int rc, eo;
+        void fragment() {
+          ivec2 I = ivec2(gl_FragCoord.xy);
+          int i0 = (rc==1)?I.x:I.y;
+          int i1 = i0 + ((i0+eo)&1)*2-1;
+          ivec2 I1 = (rc==1)?ivec2(i1, I.y):ivec2(I.x, i1);
+          I1 = clamp(I1, ivec2(0), ViewSize-1);
+          vec4 v0=Src(I, 4), v1=Src(I1, 4);
+          bool less = (rc==1) ? v0.x<v1.x : v0.y<v1.y;
+          if (i0 < i1 == less) {
+            FOut = Src(I, 0);
+            FOut1 = Src(I, 1);
+            FOut2 = Src(I, 2);
+            FOut3 = Src(I, 3);
+            FOut4 = v0;
+          } else {
+            FOut = Src(I1, 0);
+            FOut1 = Src(I1, 1);
+            FOut2 = Src(I1, 2);
+            FOut3 = Src(I1, 3);
+            FOut4 = v1;
+          }
+        }`}, nca_grid);
+        sort_phase = (sort_phase + 1) % 4;
+    }
+    
+    function update_index() {
+        for (let i = 0; i < 1; ++i) sort_index();
+        bbox = glsl({state: nca_grid[0], FP: `
+            const int C4 = ${C4};
+            FOut = vec4(1000, 1000, -1000, -1000);
+            int D = state_size()[0]/ViewSize[0];
+            ivec2 base = I * D;
+            FOR2(i, 0, ivec2(D)) {
+                vec2 p = state(base+i, C4).xy;
+                FOut.xy = min(FOut.xy, p);
+                FOut.zw = max(FOut.zw, p);
+            }`}, { size: nca_grid[0].size, scale: 1 / 4, format: 'rgba32f', tag: 'bbox' });
+
+        neighborhood = glsl({bbox, ...uniforms, FP: `
+            float r = eps * 1.1;
+            vec4 query = bbox(I)+vec4(-r,-r,r,r);
+            FOut = vec4(I,I);
+            FOR2(i, 0, ViewSize) {
+                if (box_intersects(bbox(i), query)) {
+                    vec2 fi = vec2(i);
+                    FOut.xy = min(FOut.xy, fi);
+                    FOut.zw = max(FOut.zw, fi);
+                }
+            }`}, { size: bbox.size, format: 'rgba32f', tag: 'neighborhood' });
+
+    }
+
+    
+
+    function step_fast() {
+        // use the hashgrid to avoid n^2 complexity
+        inv_rho = glsl({
+            state: nca_grid[0], neighborhood, bbox, 
+            ...uniforms, ...ncaAll, FP: `
+            const int C4 = ${C4};
+            vec2 p_i = state(I, C4).xy;
+            float r = eps * 1.1;
+            vec4 query_box = vec4(p_i - r, p_i + r);
+            int D = ViewSize.x/neighborhood_size().x;
+            ivec4 nbh = ivec4(neighborhood(I/D));
+            float rho_i = 0.0;
+            float count = 0.0;
+            FOR2(k, nbh.xy, nbh.zw + 1) {
+                if (!box_intersects(bbox(k), query_box)) continue;
+                FOR2(d, 0, ivec2(D)) {
+                    vec2 p_j = state(d + k * D, C4).xy;
+                    float w_ij = smoothing_kernel(p_j - p_i, eps);
+                    rho_i += w_ij;
+                    if (w_ij > 0.0) count += 1.0;
+                }
+            }
+            rho_i = rho_i * smoothing_coef;
+            FOut = vec4(1.0 / rho_i, count, 0.0, 0.0);
+        `}, { size: nca_grid[0].size, layern: 1, format: 'rgba32f', tag: 'inv_rho' });
+
+        glsl({
+            inv_rho: inv_rho, ...ncaAll,
+            ...uniforms, seed: Math.random() * 26321,
+            neighborhood, bbox, FP: `
+            const int C4 = ${C4};
+            // Perception arrays: scalar [s, blur_s] and vectors [grad_s(C), grad_rho(1)]
+            vec4 s_scalar[C4*2];      // scalar perception: s(C4) + blur_s(C4) = 8 vec4s
+            vec2 v_in[C4*4 + 1];     // input vectors: grad_s(C=16) + grad_rho(1) = 17 vec2s
+            mat2 M = mat2(0.0);
+            
+            void fragment() {
+                vec4 state_i[C4];
+                for (int c=0; c<C4; ++c) state_i[c] = Src(I,c);
+
+                FOut = state_i[0]; FOut1 = state_i[1]; FOut2 = state_i[2]; FOut3 = state_i[3]; FOut4 = Src(I,C4);
+                if (hash(ivec3(I,seed)).x>0.5) return;
+
+                // Init scalar perception with s_i
+                for (int c=0; c<C4; ++c) { s_scalar[c] = state_i[c]; s_scalar[C4+c] = vec4(0.0); }
+                for (int i=0; i<C4*4+1; ++i) v_in[i] = vec2(0.0);
+
+                float coef = eps / eps0;
+                vec2 p_i = Src(I,C4).xy;
+                float r = eps * 1.1;
+                vec4 query_box = vec4(p_i - r, p_i + r);
+                int D = ViewSize.x/neighborhood_size().x;
+                ivec4 nbh = ivec4(neighborhood(I/D));
+                int N = ViewSize.x * ViewSize.y / 9;
+
+                FOR2(k, nbh.xy, nbh.zw + 1) {
+                    if (!box_intersects(bbox(k), query_box)) continue;
+                    FOR2(d, 0, ivec2(D)) {
+                        ivec2 I_j = d + k * D;
+                        float inv_rho_j = inv_rho(I_j, 0).x;
+                        vec2 p_j = Src(I_j,C4).xy;
+                        vec2 r_ij = p_j - p_i;
+                        float w_ij = smoothing_kernel(r_ij, eps);
+                        if (w_ij == 0.0) continue;
+                        vec2 g_ij = gradient_kernel(r_ij, eps);
+                        M += mat2(r_ij.x * g_ij.x, r_ij.x * g_ij.y,
+                            r_ij.y * g_ij.x, r_ij.y * g_ij.y) * inv_rho_j;
+                        v_in[C4*4] += g_ij; // density gradient (last vector)
+
+                        for (int chn=0; chn<C4; ++chn) {
+                            vec4 s_j = Src(I_j, chn);
+                            s_scalar[C4 + chn] += s_j * w_ij * inv_rho_j; // blur_s
+                            // grad_s: 4 channels per vec4, each produces a vec2 gradient
+                            vec4 ds = (s_j - state_i[chn]) * inv_rho_j;
+                            int base = chn * 4;
+                            v_in[base]   += ds.x * g_ij;
+                            v_in[base+1] += ds.y * g_ij;
+                            v_in[base+2] += ds.z * g_ij;
+                            v_in[base+3] += ds.w * g_ij;
+                        }
+                    }
+                }
+
+                // Gradient correction
+                M = M * gradient_coef;
+                float det = M[0][0]*M[1][1]-M[0][1]*M[1][0];
+                if (abs(det)>1e-3) {
+                    mat2 M_inv = mat2(M[1][1],-M[0][1],-M[1][0],M[0][0]) / det;
+                    for (int i=0; i<C4*4; ++i) v_in[i] = M_inv * v_in[i];
+                }
+
+                // Normalize perception
+                for (int c=0; c<C4; ++c) s_scalar[C4+c] *= smoothing_coef;
+                for (int i=0; i<C4*4; ++i) v_in[i] = log_normalize(v_in[i] * gradient_coef * coef);
+                v_in[C4*4] = log_normalize(v_in[C4*4] * gradient_coef * coef * coef * coef / float(N));
+
+                // === Equivariant Layer with model_idx ===
+                int model_idx = int(Src(I,C4).w + 0.5);
+
+                // 1. v_hidden = v_in @ W_hidden
+                vec2 v_hidden[K_HIDDEN];
+                for (int kk=0; kk<K_HIDDEN; ++kk) {
+                    v_hidden[kk] = vec2(0.0);
+                    for (int i=0; i<K_IN; ++i)
+                        v_hidden[kk] += v_in[i] * WhAll(ivec2(kk, i + K_IN * model_idx)).x;
+                }
+
+                // 2. Pairwise dot products (upper triangle incl. diagonal)
+                int n_dots = K_HIDDEN*(K_HIDDEN+1)/2;
+                int n_dot4 = (n_dots + 3) / 4;
+                float dots[K_HIDDEN*(K_HIDDEN+1)/2];
+                int di = 0;
+                for (int a=0; a<K_HIDDEN; ++a)
+                    for (int b=a; b<K_HIDDEN; ++b)
+                        dots[di++] = dot(v_hidden[a], v_hidden[b]);
+
+                // 3. Scalar MLP (fused): mlp_out = b2 + ReLU(s*w1+b1) * w2
+                float mlp_result[MLP_OUT];
+                for (int o=0; o<MLP_OUT; ++o) mlp_result[o] = b2All(ivec2(o, model_idx)).x;
+
+                for (int h=0; h<MLP_HIDDEN; ++h) {
+                    float y = b1All(ivec2(h, model_idx)).x;
+                    for (int i=0; i<C4*2; ++i) y += dot(s_scalar[i], w1All(ivec2(i, h + MLP_HIDDEN * model_idx)));
+                    for (int i=0; i<n_dot4; ++i) {
+                        vec4 dv = vec4(0.0);
+                        for (int j=0; j<4; ++j) { int idx=i*4+j; if(idx<n_dots) dv[j]=dots[idx]; }
+                        y += dot(dv, w1All(ivec2(C4*2+i, h + MLP_HIDDEN * model_idx)));
+                    }
+                    if (y <= 0.0) continue;
+                    int hg = h/4, hc = h - hg*4;
+                    for (int o=0; o<MLP_OUT; ++o)
+                        mlp_result[o] += y * w2All(ivec2(hg, o + MLP_OUT * model_idx))[hc];
+                }
+
+                // 4. Split: ds (first CHN), gate (next K_HIDDEN, ReLU activated)
+                vec4 ds[C4];
+                for (int c=0; c<C4; ++c)
+                    ds[c] = vec4(mlp_result[c*4], mlp_result[c*4+1], mlp_result[c*4+2], mlp_result[c*4+3]);
+
+                // 5. Gated vector output: v_out = (v_hidden * gate) @ W_out
+                vec2 dx = vec2(0.0);
+                for (int kk=0; kk<K_HIDDEN; ++kk) {
+                    float g = max(mlp_result[CHN + kk], 0.0);
+                    dx += v_hidden[kk] * g * WoAll(ivec2(0, kk + K_HIDDEN * model_idx)).x;
+                }
+
+                // Apply state updates
+                if (state_noise > 0.0) {
+                    ds[0] += (hash(ivec4(I, 0, seed)) - 0.5) * state_noise;
+                    ds[1] += (hash(ivec4(I, 1, seed)) - 0.5) * state_noise;
+                    ds[2] += (hash(ivec4(I, 2, seed)) - 0.5) * state_noise;
+                    ds[3] += (hash(ivec4(I, 3, seed)) - 0.5) * state_noise;
+                }
+
+                FOut  = state_i[0] + ds[0];
+                FOut1 = state_i[1] + ds[1];
+                FOut2 = state_i[2] + ds[2];
+                FOut3 = state_i[3] + ds[3];
+
+                // Apply position update
+                vec2 dp = alpha * eps * dx / (1.0 + length(dx));
+                if (position_noise > 0.0) {
+                    dp += (hash(ivec3(I, seed + 12371.0)).yz - 0.5) * position_noise;
+                }
+                FOut4 = Src(I,C4) + vec4(dp, 0.0, 0.0);
+            }
+        `
+        }, nca_grid);
+        
+    }
+
+    function frame(time) {
+        GLSL.adjustCanvas();
+        time /= 1000.0;
+        if (params.runModel) {
+            for (let i = 0; i < params.step_n; ++i) {
+                    step_count++;
+                    if (i % 1 == 0)
+                        update_index();
+                    step_fast();
+                    if (step_count % 100 == 0) {
+                        console.log(`Step count: ${step_count}`);
+                    }
+            }
+                
+        }
+        
+        const bg_color = uniforms.bg_color;
+        glsl({state: nca_grid[0], Grid: nca_grid[0].size, ...uniforms,
+            Clear: [bg_color, bg_color, bg_color, isRecording ? 1.0 : 0.0],
+            inv_rho, neighborhood, Aspect:'mean', ...uniforms,
+            Blend:'d*(1-sa)+s', 
+            VP: `
+                float red = state(ID.xy, 2).w;
+                vec2 gb = state(ID.xy, 3).xy;
+                varying vec3 col = vec3(red, gb.x, gb.y) + 0.5;
+
+                vec4 N = neighborhood(ID.xy / 4);
+                
+                col = max(col, vec3(0.0));
+                col = min(col, vec3(1.0));
+
+                float radius = particle_radius;
+                if (plot_tracer)
+                    if (mod(floor(state(ID.xy, 4).z), 256.0) == 0.0)
+                        radius = particle_radius * 6.0;
+                vec2 pos = state(ID.xy, 4).xy;
+                VPos = vec4(((pos - viewC) + XY * radius) / viewR, 0.0, 1.0);
+            `,
+            FP: `
+                float intensity = exp(-dot(XY, XY) * 10.0);
+                FOut = vec4(col * intensity, intensity);
+            `})
+        
+
+        requestAnimationFrame(frame);
+    }
+
+    
+</script>
+
+</body>
+</html>

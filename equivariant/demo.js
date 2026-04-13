@@ -93,32 +93,32 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     }, target);
 
     const CHN = 16, C4 = CHN / 4;
-    let models, modelA, modelB;
-    let modelAName, modelBName;
+    let models, modelA;
+    let modelAName;
     let nca_grid, neighborhood, bbox, inv_rho;
     let sort_phase = 0;
     let step_count = 0;
     let frame_count = 0;
 
-    let eps0 = demo_type == "growing" ? 0.1 : 0.2;
-    let sigma0 = demo_type == "growing" ? 0.2 : 1.0;
+    const eps0 = 0.1;
+    const sigma0 = 0.2;
 
 
     const params = {
-        modelA: demo_type == "growing" ? 'disguised_face' : 'clouds',
-        modelB: demo_type == "growing" ? "ghost" : "bubbly_0101",
+        modelA: 'lizard',
         runModel: true,
         step_n: 1,
         speed: -1,
     };
     const uniforms = {
         zoom: 0.0,
+        dt: 1.0,
         eps: eps0,
         sigma: sigma0,
-        seed_mode: demo_type == "growing" ? true : false,
+        seed_mode: true,
         // sigma: 1.0,
         // viewR: 1.25,
-        viewR: 1.1,
+        viewR: 1.25,
         viewC: [0.0, 0.0],
         brush_enabled: true,
         brush_mode: 1,
@@ -130,8 +130,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         bg_color: 0.0,
         state_noise: 0.0,
         position_noise: 0.0,
-        channel_idx: 4,
-        draw_as_circle: true,
+        channel_idx: 3,
+        draw_as_circle: false,
     }
 
     uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(uniforms.eps, 2));
@@ -228,7 +228,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             } else if (channel_idx < 2.5) {
                 col = vec3(state(ID.xy, 1).zw, state(ID.xy, 2).x);
             } else if (channel_idx < 3.5) {
-                col = vec3(state(ID.xy, 2).yzw);
+                col = vec3(state(ID.xy, 2).w, state(ID.xy, 3).xy);
             } else {
                 col = vec3(state(ID.xy, 3).yzw);
             }
@@ -461,21 +461,15 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(uniforms.eps, 2));
             uniforms.gradient_coef = 10.0 / (Math.PI * Math.pow(uniforms.eps, 3));
             $('#epsilonLabel').innerText = val.toFixed(3);
-            reset();
+            // reset();
             uniforms.particle_radius = 0.04 * (uniforms.eps / eps0);
             $('#particleRadiusLabel').innerText = uniforms.particle_radius.toFixed(3);
             $('#particle_radius').value = uniforms.particle_radius;
         };
 
-        if (demo_type == "texture") {
-            $('#epsilon').max = 0.4;
-            $('#epsilon').value = 0.2;
-            $('#epsilonLabel').innerText = "0.2";
-        } else {
-            $('#epsilon').max = 0.2;
-            $('#epsilon').value = 0.1;
-            $('#epsilonLabel').innerText = "0.1";
-        }
+        $('#epsilon').max = 0.2;
+        $('#epsilon').value = 0.1;
+        $('#epsilonLabel').innerText = "0.1";
 
         $('#speed').oninput = e => {
             const speed = parseInt(e.target.value);
@@ -566,7 +560,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
     async function init() {
-        const response = await fetch(demo_type + '_demo/models.json');
+        const response = await fetch('./growing_demo/models.json');
         models = await response.json();
         let gridBox = $('#target-shelf');
         gridBox.innerHTML = '';
@@ -574,7 +568,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         $('#origtex').style = '';
         $('#texhinttext').innerHTML = '';
 
-        const targets = demo_type == "growing" ? growing_targets : texture_targets;
+        const targets = growing_targets;
         for (const name of targets) {
             if (!(name in models)) continue;
             for (const k in models[name]) {
@@ -586,7 +580,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             }
 
 
-            let media_path = demo_type + "_demo/target_images/" + name + ".png"
+            let media_path = "../growing_demo/target_images/" + name + ".png"
 
             const target_img = document.createElement('div');
             target_img.style.background = "url('" + media_path + "')";
@@ -604,7 +598,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                 }
                 params.modelA = name;
                 modelAName = name;
-                modelA = load_model(name, "A");
+                modelA = load_model(name);
                 reset();
                 $("#origtex").style.background = "url('" + media_path + "')";
                 $("#origtex").style.width = "224px";
@@ -630,59 +624,70 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
         }
         modelAName = params.modelA;
-        modelBName = params.modelB;
-        modelA = load_model(params.modelA, "A");
-        modelB = load_model(params.modelB, "B");
+        modelA = load_model(params.modelA);
         reset();
         frame();
     }
 
     init();
 
-    function load_model(name, tag = "A") {
+    function load_model(name) {
         const src = models[name];
-        // init NCA
-        const [ch, ci] = src['w1.weight'].shape, co = src['w2.weight.T'].shape[1];
-        // console.assert(co == CHN);
+        const [ch, ci] = src['w1.weight'].shape;
+        const [co, _] = src['w2.weight'].shape;
+        const k_in = src['W_hidden'].shape[0];
+        const k_hidden = src['W_hidden'].shape[1] / 4;
+        const k_out = src['W_out'].shape[1] / 4;
         const nca = {
-            ["w1" + tag]: glsl({}, {
+            WhA: glsl({}, {
+                size: [src['W_hidden'].shape[1] / 4, src['W_hidden'].shape[0]], format: 'rgba32f',
+                data: src['W_hidden'].data, tag: 'WhA'
+            }),
+            WoA: glsl({}, {
+                size: [src['W_out'].shape[1] / 4, src['W_out'].shape[0]], format: 'rgba32f',
+                data: src['W_out'].data, tag: 'WoA'
+            }),
+            w1A: glsl({}, {
                 size: [ci / 4, ch], format: 'rgba32f',
-                data: src['w1.weight'].data, tag: 'w1' + tag
+                data: src['w1.weight'].data, tag: 'w1A'
             }),
-            ["b1" + tag]: glsl({}, {
+            b1A: glsl({}, {
                 size: [1, ch], format: 'r32f',
-                data: src['w1.bias'].data, tag: 'b1' + tag
+                data: src['w1.bias'].data, tag: 'b1A'
             }),
-            ["w2t" + tag]: glsl({}, {
-                size: [co / 4, ch], format: 'rgba32f',
-                data: src['w2.weight.T'].data, tag: 'w2t' + tag
+            w2A: glsl({}, {
+                size: [ch / 4, co], format: 'rgba32f',
+                data: src['w2.weight'].data, tag: 'w2A'
+            }),
+            b2A: glsl({}, {
+                size: [1, co], format: 'r32f',
+                data: src['w2.bias'].data, tag: 'b2A'
             }),
         };
-        if (tag == "A") {
-            nca['Inc'] = `
+        nca.Inc = `
             const float alpha = ${src['alpha'].toFixed(4)};
             const float eps0 = ${src['eps0'].toFixed(4)};
             const float N0 = ${src['N0'].toFixed(4)};
+            const int K_IN = ${k_in};
+            const int K_HIDDEN = ${k_hidden};
+            const int K_OUT = ${k_out};
+            const int MLP_HIDDEN = ${ch};
+            const int MLP_OUT = ${co};
+            const int CHN = ${CHN};
 
             float smoothing_kernel(vec2 r, float eps) {
                 float d2 = dot(r, r);
-                // float q = eps * eps - d2;
                 float q = 1.0 - d2 / (eps * eps);
-                if (q > 0.0) return q * q * q;                
+                if (q > 0.0) return q * q * q;
                 return 0.0;
             }
 
             vec2 gradient_kernel(vec2 r, float eps) {
-                // float d = length(r);
-                // if (d == 0.0 || d >= eps) return vec2(0.0);
-                // return 3.0 * (eps - d) * (eps - d) * normalize(r);
                 float d = length(r) / eps;
                 if (d == 0.0 || d >= 1.0) return vec2(0.0);
                 return 3.0 * (1.0 - d) * (1.0 - d) * normalize(r);
-                
             }
-        `
-        }
+        `;
         return nca;
     }
 
@@ -888,271 +893,163 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
     function step_fast() {
-        // use the hashgrid to avoid n^2 complexity
+        // Use the hashgrid to avoid n^2 complexity.
         inv_rho = glsl({
             state: nca_grid[0], neighborhood, bbox,
             ...uniforms, ...modelA, FP: `
-        const int C4 = ${C4};
-        vec2 p_i = state(I, C4).xy;
-        float r = eps * 1.1;
-        vec4 query_box = vec4(p_i - r, p_i + r);
-        int D = ViewSize.x/neighborhood_size().x;
-        ivec4 nbh = ivec4(neighborhood(I/D));
-        float rho_i = 0.0;
-        float count = 0.0;
-        FOR2(k, nbh.xy, nbh.zw + 1) {
-            if (!box_intersects(bbox(k), query_box)) continue;
-            FOR2(d, 0, ivec2(D)) {
-                vec2 p_j = state(d + k * D, C4).xy;
-                float w_ij = smoothing_kernel(p_j - p_i, eps);
-                rho_i += w_ij;
-                if (w_ij > 0.0) count += 1.0;
-            }
-        }
-        rho_i = rho_i * smoothing_coef;
-        FOut = vec4(1.0 / rho_i, count, 0.0, 0.0);
-    `}, { size: nca_grid[0].size, layern: 1, format: 'rgba32f', tag: 'inv_rho' });
-
-        glsl({
-            inv_rho: inv_rho, ...modelA, ...modelB,
-            ...uniforms, seed: Math.random() * 26321,
-            neighborhood, bbox, FP: `
-        const int C4 = ${C4};
-        vec4 perc[C4*4 + 1], upd[C4 + 1];
-        mat2 M = mat2(0.0); // Moment matrix for gradient correction
-        
-        void fragment() {
-            // return;
-
-            for (int chn=0; chn<C4; ++chn) perc[chn] = upd[chn] = Src(I,chn);
-
-            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3]; FOut4 = Src(I,C4);
-            if (hash(ivec3(I,seed)).x>0.5) return;
-
-            upd[C4] = vec4(0.0); // position update and particle/model idx
-            for (int i=C4; i<C4*4 + 1; ++i) perc[i] = vec4(0.0);
-
-            float coef = eps / eps0; // eps / default_eps
-            vec2 p_i = Src(I,C4).xy;
+            const int C4 = ${C4};
+            vec2 p_i = state(I, C4).xy;
             float r = eps * 1.1;
             vec4 query_box = vec4(p_i - r, p_i + r);
             int D = ViewSize.x/neighborhood_size().x;
             ivec4 nbh = ivec4(neighborhood(I/D));
-            int N = ViewSize.x * ViewSize.y;
-
+            float rho_i = 0.0;
+            float count = 0.0;
             FOR2(k, nbh.xy, nbh.zw + 1) {
                 if (!box_intersects(bbox(k), query_box)) continue;
                 FOR2(d, 0, ivec2(D)) {
-                    ivec2 I_j = d + k * D;
-                    float inv_rho_j = inv_rho(I_j, 0).x;
-                    vec2 p_j = Src(I_j,C4).xy;
-                    vec2 r_ij = p_j - p_i;
-                    float w_ij = smoothing_kernel(r_ij, eps);
-                    if (w_ij == 0.0) continue;
-                    vec2 g_ij = gradient_kernel(r_ij, eps);
-                    M += mat2(r_ij.x * g_ij.x, r_ij.x * g_ij.y,
-                        r_ij.y * g_ij.x, r_ij.y * g_ij.y) * inv_rho_j;
-                    perc[C4*4].xy += g_ij; // density gradient
-
-                    for (int chn=0; chn<C4; ++chn) {
-                        vec4 s_j_c = Src(I_j, chn);
-                        perc[C4 + chn] += s_j_c * w_ij * inv_rho_j; // smoothed state
-                        vec4 gs_x = (s_j_c - perc[chn]) * g_ij.x * inv_rho_j;
-                        vec4 gs_y = (s_j_c - perc[chn]) * g_ij.y * inv_rho_j;
-                        perc[C4*2 + chn * 2] += vec4(gs_x.x, gs_y.x, gs_x.y, gs_y.y); // gradient x
-                        perc[C4*2 + chn * 2 + 1] += vec4(gs_x.z, gs_y.z, gs_x.w, gs_y.w); // gradient y
-                        
-                        
-                    }
+                    vec2 p_j = state(d + k * D, C4).xy;
+                    float w_ij = smoothing_kernel(p_j - p_i, eps);
+                    rho_i += w_ij;
+                    if (w_ij > 0.0) count += 1.0;
                 }
             }
-
-            mat2 M_inv;
-            M = M * gradient_coef;
-            float det = M[0][0]*M[1][1]-M[0][1]*M[1][0];
-            if (abs(det)>1e-3) {
-                M_inv = mat2( M[1][1], -M[0][1],
-                                -M[1][0],  M[0][0]) / det;
-                for (int chn=0; chn<C4; ++chn) {
-                    perc[C4*2 + chn * 2].xy = perc[C4*2 + chn * 2].xy * M_inv;
-                    perc[C4*2 + chn * 2].zw = perc[C4*2 + chn * 2].zw * M_inv;
-                    perc[C4*2 + chn * 2 + 1].xy = perc[C4*2 + chn * 2 + 1].xy * M_inv;
-                    perc[C4*2 + chn * 2 + 1].zw = perc[C4*2 + chn * 2 + 1].zw * M_inv;
-                }
-            }
-
-            for (int chn=0; chn<C4; ++chn) {
-                perc[C4 + chn] = perc[C4 + chn] * smoothing_coef;
-                perc[C4*2 + chn * 2].xy = log_normalize(perc[C4*2 + chn * 2].xy * gradient_coef * coef);
-                perc[C4*2 + chn * 2].zw = log_normalize(perc[C4*2 + chn * 2].zw * gradient_coef * coef);
-                perc[C4*2 + chn * 2 + 1].xy = log_normalize(perc[C4*2 + chn * 2 + 1].xy * gradient_coef * coef);
-                perc[C4*2 + chn * 2 + 1].zw = log_normalize(perc[C4*2 + chn * 2 + 1].zw * gradient_coef * coef);
-            }
-            perc[C4*4].xy = log_normalize(perc[C4*4].xy * gradient_coef * coef * coef * coef * 1.0 / float(N));
-            
-            int ci = w1A_size().x, ch = w1A_size().y;
-            bool model_type = floor(Src(I,C4).w + 0.5) == 0.0;
-            // float model_weight = 1.0 - FOut4.w;
-            for (int h=0; h<ch; ++h) {
-                float y = model_type ? b1A(ivec2(0, h)).x : b1B(ivec2(0, h)).x;
-                for (int i=0; i<ci; ++i) {y += model_type ? dot(perc[i], w1A(ivec2(i, h))) : dot(perc[i], w1B(ivec2(i, h)));}
-                if (y<=0.0) continue;
-                for (int i=0; i<C4 + 1; ++i) {upd[i] += model_type ? y*w2tA(ivec2(i, h)) : y*w2tB(ivec2(i, h));}
-                // float yA = b1A(ivec2(0, h)).x;
-                // float yB = b1B(ivec2(0, h)).x;
-                // float y = model_weight * yA + (1.0 - model_weight) * yB;
-                // for (int i=0; i<ci; ++i) {
-                //     vec4 p = perc[i];
-                //     vec4 wA = w1A(ivec2(i, h));
-                //     vec4 wB = w1B(ivec2(i, h));
-                //     y += model_weight * dot(p, wA) + (1.0 - model_weight) * dot(p, wB);
-                // }
-                // if (y<=0.0) continue;
-                // for (int i=0; i<C4 + 1; ++i) {
-                //     vec4 wA = w2tA(ivec2(i, h));
-                //     vec4 wB = w2tB(ivec2(i, h));
-                //     upd[i] += (model_weight * wA + (1.0 - model_weight) * wB) * y;
-                // }
-            }
-            
-            if (state_noise > 0.0) {
-                upd[0] += (hash(ivec4(I, 0, seed)) - 0.5) * state_noise;
-                upd[1] += (hash(ivec4(I, 1, seed)) - 0.5) * state_noise;
-                upd[2] += (hash(ivec4(I, 2, seed)) - 0.5) * state_noise;
-                upd[3] += (hash(ivec4(I, 3, seed)) - 0.5) * state_noise;
-            }
-
-
-            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3];
-            // FOut = clamp(upd[0], vec4(-1.0), vec4(1.0)); 
-            // FOut1 = clamp(upd[1], vec4(-1.0), vec4(1.0));
-            // FOut2 = clamp(upd[2], vec4(-1.0), vec4(1.0));
-            // FOut3 = clamp(upd[3], vec4(-1.0), vec4(1.0));
-            vec2 dp = upd[C4].xy;
-            
-            upd[C4].xy = alpha * eps * dp / (1.0 + length(dp));
-
-            if (position_noise > 0.0) {
-                upd[C4].xy += (hash(ivec3(I,seed + 12371.0)).yz - 0.5) * position_noise;
-            }
-            // vec2 pos_change = hash(ivec3(I, seed + 12371.0)).yz * 0.02 - 0.01;
-            // FOut4 = Src(I,4);// + vec4(pos_change, 0.0, 0.0); // keep position unchanged
-            FOut4 += upd[C4];
-        }
-    `
-        }, nca_grid);
-
-    }
-
-
-
-    function step() {
-        inv_rho = glsl({
-            state: nca_grid[0], ...uniforms, ...modelA, FP: `
-        const int C4 = ${C4};
-        int N = state_size().x * state_size().y;
-        vec2 p_i = state(I, C4).xy;
-        float rho_i = 0.0;
-        float count = 0.0;
-        for (int j = 0; j < N; ++j) {
-            ivec2 I_j = ivec2(j % ViewSize.x, j / ViewSize.x);
-            vec2 p_j = state(I_j, C4).xy;
-            float w_ij = smoothing_kernel(p_j - p_i, eps);
-            rho_i += w_ij;
-            if (w_ij > 0.0) count += 1.0;
-        }
-        rho_i = rho_i * smoothing_coef;
-        FOut = vec4(1.0 / rho_i, count, 0.0, 0.0);
-    `}, { size: nca_grid[0].size, layern: 1, format: 'rgba32f', tag: 'inv_rho' });
-
-
+            rho_i = rho_i * smoothing_coef;
+            FOut = vec4(1.0 / rho_i, count, 0.0, 0.0);
+        `}, { size: nca_grid[0].size, layern: 1, format: 'rgba32f', tag: 'inv_rho' });
 
         glsl({
-            inv_rho: inv_rho, ...modelA, ...uniforms, seed: Math.random() * 5614.765, FP: `
-        const int C4 = ${C4};
-        vec4 perc[C4*4 + 1], upd[C4 + 1];
-        mat2 M = mat2(0.0); // Moment matrix for gradient correction
-        
-        
-        void fragment() {
-            // return;
+            inv_rho: inv_rho, ...modelA,
+            ...uniforms, seed: Math.random() * 26321,
+            neighborhood, bbox, FP: `
+            const int C4 = ${C4};
+            // Perception arrays: scalar [s, blur_s] and vectors [grad_s(C), grad_rho(1)]
+            vec4 s_scalar[C4*2];
+            vec2 v_in[C4*4 + 1];
+            mat2 M = mat2(0.0);
+            
+            void fragment() {
+                vec4 state_i[C4];
+                for (int c=0; c<C4; ++c) state_i[c] = Src(I,c);
 
-            for (int chn=0; chn<C4; ++chn) perc[chn] = upd[chn] = Src(I,chn);
-            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3]; FOut4 = Src(I,C4);
-            if (hash(ivec3(I,seed)).x >= 0.5) return;
-            upd[C4] = vec4(0.0);
-            for (int i=C4; i<C4*4 + 1; ++i) perc[i] = vec4(0.0);
+                FOut = state_i[0]; FOut1 = state_i[1]; FOut2 = state_i[2]; FOut3 = state_i[3]; FOut4 = Src(I,C4);
+                if (hash(ivec3(I,seed)).x>0.5) return;
 
-            float coef = eps / eps0; // eps / default_eps
-            vec2 p_i = Src(I,C4).xy;
-            int N = ViewSize.x * ViewSize.y;
-            for (int j = 0; j < N; ++j) {
-                ivec2 I_j = ivec2(j % ViewSize.x, j / ViewSize.x);
-                float inv_rho_j = inv_rho(I_j, 0).x;
-                vec2 p_j = Src(I_j,C4).xy;
-                vec2 r_ij = p_j - p_i;
-                float w_ij = smoothing_kernel(r_ij, eps);
-                if (w_ij == 0.0) continue;
-                vec2 g_ij = gradient_kernel(r_ij, eps);
-                M += mat2(r_ij.x * g_ij.x, r_ij.y * g_ij.x,
-                    r_ij.x * g_ij.y, r_ij.y * g_ij.y) * inv_rho_j;
-                perc[C4*4].xy += g_ij; // density gradient
+                for (int c=0; c<C4; ++c) { s_scalar[c] = state_i[c]; s_scalar[C4+c] = vec4(0.0); }
+                for (int i=0; i<C4*4+1; ++i) v_in[i] = vec2(0.0);
 
-                for (int chn=0; chn<C4; ++chn) {
-                    vec4 s_j_c = Src(I_j, chn);
-                    perc[C4 + chn] += s_j_c * w_ij * inv_rho_j; // smoothed state
-                    vec4 gs_x = (s_j_c - perc[chn]) * g_ij.x * inv_rho_j;
-                    vec4 gs_y = (s_j_c - perc[chn]) * g_ij.y * inv_rho_j;
-                    perc[C4*2 + chn * 2] += vec4(gs_x.x, gs_y.x, gs_x.y, gs_y.y);
-                    perc[C4*2 + chn * 2 + 1] += vec4(gs_x.z, gs_y.z, gs_x.w, gs_y.w);
+                float coef = eps / eps0;
+                vec2 p_i = Src(I,C4).xy;
+                float r = eps * 1.1;
+                vec4 query_box = vec4(p_i - r, p_i + r);
+                int D = ViewSize.x/neighborhood_size().x;
+                ivec4 nbh = ivec4(neighborhood(I/D));
+                int N = ViewSize.x * ViewSize.y;
+
+                FOR2(k, nbh.xy, nbh.zw + 1) {
+                    if (!box_intersects(bbox(k), query_box)) continue;
+                    FOR2(d, 0, ivec2(D)) {
+                        ivec2 I_j = d + k * D;
+                        float inv_rho_j = inv_rho(I_j, 0).x;
+                        vec2 p_j = Src(I_j,C4).xy;
+                        vec2 r_ij = p_j - p_i;
+                        float w_ij = smoothing_kernel(r_ij, eps);
+                        if (w_ij == 0.0) continue;
+                        vec2 g_ij = gradient_kernel(r_ij, eps);
+                        M += mat2(r_ij.x * g_ij.x, r_ij.x * g_ij.y,
+                                  r_ij.y * g_ij.x, r_ij.y * g_ij.y) * inv_rho_j;
+                        v_in[C4*4] += g_ij;
+
+                        for (int chn=0; chn<C4; ++chn) {
+                            vec4 s_j = Src(I_j, chn);
+                            s_scalar[C4 + chn] += s_j * w_ij * inv_rho_j;
+                            vec4 ds = (s_j - state_i[chn]) * inv_rho_j;
+                            int base = chn * 4;
+                            v_in[base] += ds.x * g_ij;
+                            v_in[base+1] += ds.y * g_ij;
+                            v_in[base+2] += ds.z * g_ij;
+                            v_in[base+3] += ds.w * g_ij;
+                        }
+                    }
                 }
 
-            }
-            M = M * gradient_coef;
-            float det = M[0][0]*M[1][1]-M[0][1]*M[1][0];
-            if (abs(det)>1e-3) {
-                mat2 M_inv = mat2( M[1][1], -M[1][0],
-                                -M[0][1],  M[0][0]) / det;
-                for (int chn=0; chn<C4; ++chn) {
-                    perc[C4*2 + chn * 2].xy = perc[C4*2 + chn * 2].xy * M_inv;
-                    perc[C4*2 + chn * 2].zw = perc[C4*2 + chn * 2].zw * M_inv;
-                    perc[C4*2 + chn * 2 + 1].xy = perc[C4*2 + chn * 2 + 1].xy * M_inv;
-                    perc[C4*2 + chn * 2 + 1].zw = perc[C4*2 + chn * 2 + 1].zw * M_inv;
+                M = M * gradient_coef;
+                float det = M[0][0]*M[1][1]-M[0][1]*M[1][0];
+                if (abs(det)>1e-3) {
+                    mat2 M_inv = mat2(M[1][1], -M[0][1], -M[1][0], M[0][0]) / det;
+                    for (int i=0; i<C4*4; ++i) v_in[i] = M_inv * v_in[i];
                 }
-            }
 
-            for (int chn=0; chn<C4; ++chn) {
-                perc[C4 + chn] = perc[C4 + chn] * smoothing_coef;
-                perc[C4*2 + chn * 2].xy = log_normalize(perc[C4*2 + chn * 2].xy * gradient_coef * coef);
-                perc[C4*2 + chn * 2].zw = log_normalize(perc[C4*2 + chn * 2].zw * gradient_coef * coef);
-                perc[C4*2 + chn * 2 + 1].xy = log_normalize(perc[C4*2 + chn * 2 + 1].xy * gradient_coef * coef);
-                perc[C4*2 + chn * 2 + 1].zw = log_normalize(perc[C4*2 + chn * 2 + 1].zw * gradient_coef * coef);
+                for (int c=0; c<C4; ++c) s_scalar[C4+c] *= smoothing_coef;
+                for (int i=0; i<C4*4; ++i) v_in[i] = log_normalize(v_in[i] * gradient_coef * coef);
+                v_in[C4*4] = log_normalize(v_in[C4*4] * gradient_coef * coef * coef * coef / float(N));
+
+                vec2 v_hidden[K_HIDDEN];
+                for (int kk=0; kk<K_HIDDEN; ++kk) {
+                    v_hidden[kk] = vec2(0.0);
+                    for (int i=0; i<K_IN; ++i) {
+                        v_hidden[kk] += v_in[i] * WhA(ivec2(kk, i)).x;
+                    }
+                }
+
+                int n_dots = K_HIDDEN*(K_HIDDEN+1)/2;
+                int n_dot4 = (n_dots + 3) / 4;
+                float dots[K_HIDDEN*(K_HIDDEN+1)/2];
+                int di = 0;
+                for (int a=0; a<K_HIDDEN; ++a)
+                    for (int b=a; b<K_HIDDEN; ++b)
+                        dots[di++] = dot(v_hidden[a], v_hidden[b]);
+
+                float mlp_out[MLP_OUT];
+                for (int o=0; o<MLP_OUT; ++o) mlp_out[o] = b2A(ivec2(0, o)).x;
+
+                for (int h=0; h<MLP_HIDDEN; ++h) {
+                    float y = b1A(ivec2(0, h)).x;
+                    for (int i=0; i<C4*2; ++i) y += dot(s_scalar[i], w1A(ivec2(i, h)));
+                    for (int i=0; i<n_dot4; ++i) {
+                        vec4 dv = vec4(0.0);
+                        for (int j=0; j<4; ++j) {
+                            int idx=i*4+j;
+                            if (idx<n_dots) dv[j]=dots[idx];
+                        }
+                        y += dot(dv, w1A(ivec2(C4*2+i, h)));
+                    }
+                    if (y <= 0.0) continue;
+                    int hg = h/4;
+                    int hc = h - hg*4;
+                    for (int o=0; o<MLP_OUT; ++o)
+                        mlp_out[o] += y * w2A(ivec2(hg, o))[hc];
+                }
+
+                vec4 ds[C4];
+                for (int c=0; c<C4; ++c)
+                    ds[c] = vec4(mlp_out[c*4], mlp_out[c*4+1], mlp_out[c*4+2], mlp_out[c*4+3]);
+
+                if (state_noise > 0.0) {
+                    ds[0] += (hash(ivec4(I, 0, seed)) - 0.5) * state_noise;
+                    ds[1] += (hash(ivec4(I, 1, seed)) - 0.5) * state_noise;
+                    ds[2] += (hash(ivec4(I, 2, seed)) - 0.5) * state_noise;
+                    ds[3] += (hash(ivec4(I, 3, seed)) - 0.5) * state_noise;
+                }
+
+                vec2 dx = vec2(0.0);
+                for (int kk=0; kk<K_HIDDEN; ++kk) {
+                    float g = max(mlp_out[CHN + kk], 0.0);
+                    dx += v_hidden[kk] * g * WoA(ivec2(0, kk)).x;
+                }
+
+                FOut = state_i[0] + dt * ds[0];
+                FOut1 = state_i[1] + dt * ds[1];
+                FOut2 = state_i[2] + dt * ds[2];
+                FOut3 = state_i[3] + dt * ds[3];
+                FOut4 = Src(I,C4) + vec4(dt * alpha * eps * dx / (1.0 + length(dx)), 0.0, 0.0);
             }
-            perc[C4*4].xy = log_normalize(perc[C4*4].xy * gradient_coef * coef * coef * coef / float(N));
-            
-            int ci = w1A_size().x, ch = w1A_size().y;
-            int model_idx = int(Src(I,C4).w);
-            for (int h=0; h<ch; ++h) {
-                float y = b1A(ivec2(0, h)).x;
-                for (int i=0; i<ci; ++i) {y += dot(perc[i], w1A(ivec2(i, h)));}
-                if (y<=0.0) continue;
-                for (int i=0; i<C4 + 1; ++i) {upd[i] += y*w2t(ivec2(i, h));}
-            }
-            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3];
-            // FOut = clamp(upd[0], vec4(-1.0), vec4(1.0)); 
-            // FOut1 = clamp(upd[1], vec4(-1.0), vec4(1.0));
-            // FOut2 = clamp(upd[2], vec4(-1.0), vec4(1.0));
-            // FOut3 = clamp(upd[3], vec4(-1.0), vec4(1.0));
-            vec2 dp = upd[C4].xy;
-            
-            upd[C4] = alpha * eps * dp / (1.0 + length(dp));
-            // vec2 pos_change = hash(ivec3(I, seed + 12371.0)).yz * 0.02 - 0.01;
-            // FOut4 = Src(I,4);// + vec4(pos_change, 0.0, 0.0); // keep position unchanged
-            FOut4 += upd[C4];
-        }
-    `
+        `
         }, nca_grid);
+    }
 
+    function step() {
+        step_fast();
     }
 
     function frame(time) {
@@ -1183,47 +1080,6 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         GLSL.animation_id = requestAnimationFrame(frame);
     }
 
-
-    const texture_targets = [
-        "0",
-        "bubbly_0101",
-        "polka-dotted_0121",
-        "clouds",
-        "grid_0040",
-        "stars",
-        "hearts",
-        "goo",
-        "squares",
-        "triangles",
-        "slime",
-        "droplets",
-        "rain",
-        "snow",
-        "banded_0037",
-        "tree",
-        "worms",
-        "mesh",
-        "galaxy",
-        "rings",
-        "bars",
-        "A",
-        "E",
-        "G",
-        "K",
-        "S",
-        "X",
-        "Z",
-        "N",
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",
-    ];
 
     const growing_targets = [
         "banana",
