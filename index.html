@@ -3,6 +3,16 @@
 
 <head>
 
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-744SZNNJM2"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+
+        gtag('config', 'G-744SZNNJM2');
+    </script>
+
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script>
         window.MathJax = {
@@ -115,6 +125,36 @@
                         <h1 class="title is-2 publication-title">Neural Particle Automata: Learning <br>Self-Organizing
                             Particle Dynamics</h1>
 
+                        <div class="is-size-5 publication-authors">
+                            <span class="author-block"><a href="https://pajouheshgar.github.io">Ehsan
+                                    Pajouheshgar</a><sup>* 1</sup>,</span>
+                            <span class="author-block"><a
+                                    href="https://scholar.google.com/citations?user=pNFv3YQAAAAJ&hl=en">Hyunsoo
+                                    Kim</a><sup>* 2</sup>,</span>
+                            <br>
+                            <span class="author-block"><a href="https://www.epfl.ch/labs/ivrl/">Sabine
+                                    Süsstrunk</a><sup>1</sup>,</span>
+                            <span class="author-block"><a href="https://rgl.epfl.ch/people/wjakob">Wenzel
+                                    Jakob</a><sup>1</sup>,</span>
+                            <span class="author-block"><a href="https://cgv.kaist.ac.kr/members/professor">Jinah
+                                    Park</a><sup>2</sup></span>
+                        </div>
+
+                        <div class="is-size-5 publication-authors">
+                            <span class="author-block"><sup>1</sup>EPFL, Switzerland</span>
+                            &emsp;&emsp;
+                            <span class="author-block"><sup>2</sup>KAIST, South Korea</span>
+                        </div>
+
+
+                        <div class="is-size-6 publication-authors">
+                            <span class="author-block"><sup>*</sup> Denotes equal contribution</span>
+                        </div>
+
+                        <div class="is-size-4 publication-authors">
+                            <span class="author-block">SIGGRAPH 2026</span>
+                        </div>
+
 
 
                     </div>
@@ -130,6 +170,15 @@
         <div class="columns is-centered has-text-centered ">
 
             <span class="link-block">
+                <a href="https://arxiv.org/abs/2601.16096" class="external-link button is-normal is-rounded">
+                    <span class="icon">
+                        <i class="ai ai-arxiv"></i>
+                    </span>
+                    <span>arXiv</span>
+                </a>
+            </span>
+
+            <span class="link-block">
                 <a href="./" target="_blank" class="external-link button is-normal is-rounded">
                     <span class="icon">
                         <svg class="svg-inline--fa fa-github fa-w-16" aria-hidden="true" focusable="false"
@@ -143,7 +192,7 @@
                     <span>GitHub (Coming Soon)</span>
                 </a>
             </span>
-            
+
         </div>
         <div class="columns is-centered has-text-centered ">
 
@@ -220,6 +269,20 @@
             <!--                                  <span>Supplementary</span>-->
             <!--                                </a>-->
             <!--                            </span>-->
+
+
+        </div>
+
+        <div class="columns is-centered has-text-centered ">
+
+            <span id="equivariant_demo_button" class="link-block">
+                <a class="button is-normal is-rounded" id="call-equivariant-demo">
+                    <span class="icon">
+                        <i class="fa-solid fa-laptop-code"></i>
+                    </span>
+                    <span>Equivariant Growing Demo (Bonus)</span>
+                </a>
+            </span>
 
 
         </div>
@@ -429,22 +492,22 @@
                     <h2 class="title is-3">Abstract</h2>
                     <div class="content has-text-justified">
                         <p>
-                            We introduce Neural Particle Automata (NPA), a Lagrangian generalization of Neural
-                            Cellular Automata (NCA) from static lattices to dynamic particle systems.
-                            Unlike classical Eulerian NCAs where cells are pinned to pixels or voxels, NPA model each
-                            cell as a particle with a continuous position and internal state, both updated by a shared,
-                            learnable neural rule.
+                            We introduce Neural Particle Automata (NPA), a Lagrangian generalization of Neural Cellular
+                            Automata (NCA) from static lattices to dynamic particle systems.
+                            Unlike classical Eulerian NCA where cells are fixed to pixels or voxels, NPA represent each
+                            cell as a particle with a continuous position and an internal state, both updated by a
+                            shared learnable neural rule.
                             This particle-based formulation yields clear individuation of cells, allows heterogeneous
-                            dynamics, and concentrates computation only on regions where activity is present.
-                            At the same time, particle systems pose challenges: neighborhoods are dynamic, and a naive
-                            implementation of local interactions scale quadratically with the number of particles.
-                            We address these challenges by replacing grid-based neighborhood perception with
-                            differentiable Smoothed Particle Hydrodynamics (SPH) operators backed by memory-efficient,
-                            CUDA-accelerated kernels, enabling scalable end-to-end training. Across a set of tasks --
-                            (i) growing morphologies, (ii) self-classifying point clouds, and (iii) self-organizing
-                            particle textures -- we show that NPA inherit hallmark NCA properties such as robustness and
-                            self-regeneration, while enabling qualitatively new particle-based behaviors, establishing
-                            NPAs as a compact neural model for self-organizing particle systems.
+                            dynamics, and focuses computation on regions where activity is present.
+                            However, particle systems introduce two challenges: neighborhoods are dynamic, and a naive
+                            implementation of local interactions scales quadratically with the number of particles.
+                            We address these issues by replacing grid-based perception with differentiable Smoothed
+                            Particle Hydrodynamics (SPH) operators, backed by memory-efficient CUDA kernels for scalable
+                            end-to-end training.
+                            Across tasks including morphogenesis, point-cloud classification, and particle-based texture
+                            synthesis, we show that NPA retain key NCA behaviors such as robustness and regeneration,
+                            while enabling new behaviors specific to particle systems. These results position NPA as a
+                            compact neural model for learning self-organizing particle systems.
                         </p>
 
                     </div>
@@ -480,6 +543,23 @@
         <!-- <div class="container is-max-desktop has-text-centered">
             <img src="data/images/teaser.png" style="max-width:100%; height:auto;" alt="High-resolution result">
         </div> -->
+    </section>
+
+
+    <section class="section" id="BibTeX">
+        <div class="container is-max-desktop content">
+            <h2 class="title">BibTeX</h2>
+            <pre><code>{ }</code></pre>
+            <!--        <pre><code>@misc{pajouheshgar2023mesh,-->
+            <!--      title={Mesh Neural Cellular Automata},-->
+            <!--      author={Ehsan Pajouheshgar and Yitao Xu and Alexander Mordvintsev and Eyvind Niklasson and Tong Zhang and Sabine Süsstrunk},-->
+            <!--      year={2023},-->
+            <!--      eprint={2311.02820},-->
+            <!--      archivePrefix={arXiv},-->
+            <!--      primaryClass={cs.CV}-->
+            <!--}</code></pre>-->
+        </div>
+
     </section>
 
 
@@ -524,6 +604,7 @@
 
 <script type="module">
     import { createDemo } from './demo.js'
+    import { createDemo as createEquivariantDemo } from './equivariant/demo.js'
 
     const canvas = document.getElementById('demo-canvas');
     canvas.width = 1024;
@@ -532,12 +613,14 @@
 
     const textureBtnWrap = document.getElementById('texture_demo_button');
     const growingBtnWrap = document.getElementById('growing_demo_button');
+    const equivariantBtnWrap = document.getElementById('equivariant_demo_button');
 
     function getInitialDemoFromHash() {
         const h = (window.location.hash || '').replace('#', '').toLowerCase();
         // alert(h);
         if (h === 'texture') return 'texture';
         if (h === 'growing') return 'growing';
+        if (h === 'equivariant') return 'equivariant';
         return 'growing';
     }
 
@@ -545,9 +628,15 @@
         if (demoName === 'texture') {
             textureBtnWrap.classList.add('highlight-wrap');
             growingBtnWrap.classList.remove('highlight-wrap');
+            equivariantBtnWrap.classList.remove('highlight-wrap');
+        } else if (demoName === 'equivariant') {
+            textureBtnWrap.classList.remove('highlight-wrap');
+            growingBtnWrap.classList.remove('highlight-wrap');
+            equivariantBtnWrap.classList.add('highlight-wrap');
         } else {
             textureBtnWrap.classList.remove('highlight-wrap');
             growingBtnWrap.classList.add('highlight-wrap');
+            equivariantBtnWrap.classList.remove('highlight-wrap');
         }
     }
 
@@ -555,7 +644,11 @@
         if (!first && currentDemo === tp) return;
         currentDemo = tp;
         glsl.reset();
-        createDemo(glsl, 'demo', tp);
+        if (tp === 'equivariant') {
+            createEquivariantDemo(glsl, 'demo');
+        } else {
+            createDemo(glsl, 'demo', tp);
+        }
         setHighlight(tp);
         window.location.hash = tp;
     }
@@ -569,5 +662,9 @@
 
     document.getElementById('call-growing-demo').addEventListener('click', function () {
         InitializeDemo('growing');
+    });
+
+    document.getElementById('call-equivariant-demo').addEventListener('click', function () {
+        InitializeDemo('equivariant');
     });
 </script>

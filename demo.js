@@ -105,7 +105,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
     const params = {
-        modelA: demo_type == "growing" ? 'disguised_face' : 'clouds',
+        modelA: demo_type == "growing" ? 'lizard' : 'clouds',
         modelB: demo_type == "growing" ? "ghost" : "bubbly_0101",
         runModel: true,
         step_n: 1,
@@ -298,7 +298,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             step_fast();
             step_count++;
             if (checkpoints.has(i)) await save(i);
-            
+
         }
 
         params.runModel = wasRunning;
@@ -461,8 +461,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             uniforms.smoothing_coef = 4.0 / (Math.PI * Math.pow(uniforms.eps, 2));
             uniforms.gradient_coef = 10.0 / (Math.PI * Math.pow(uniforms.eps, 3));
             $('#epsilonLabel').innerText = val.toFixed(3);
-            reset();
-            uniforms.particle_radius = 0.04 * (uniforms.eps / eps0);
+            // reset();
+            uniforms.particle_radius = 0.03 * (uniforms.eps / eps0);
             $('#particleRadiusLabel').innerText = uniforms.particle_radius.toFixed(3);
             $('#particle_radius').value = uniforms.particle_radius;
         };
@@ -619,13 +619,12 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
 
+            gridBox.appendChild(target_img);
+
             if (name == params.modelA) {
                 target_img.style.borderColor = "rgb(245 140 44)";
-                gridBox.prepend(target_img);
                 currentTarget = target_img;
                 target_img.click();
-            } else {
-                gridBox.insertBefore(target_img, gridBox.lastElementChild);
             }
 
         }
@@ -1226,20 +1225,6 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     ];
 
     const growing_targets = [
-        "banana",
-        "shocked_face_with_exploding_head",
-        "disguised_face",
-        "smiling_face_with_open_mouth_and_smiling_eyes",
-        "grinning_face_with_smiling_eyes",
-        "smiling_face_with_heart_shaped_eyes",
-        "smiling_face_with_sunglasses",
-        "overheated_face",
-        "thumbs_up_sign",
-        "eye",
-        "clown_face",
-        "freezing_face",
-        "grinning_face_with_one_large_and_one_small_eye",
-        "eyes",
         "lizard",
         "ghost",
         "lady_beetle",
@@ -1266,6 +1251,19 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         "duck",
         "orangutan",
         "chipmunk",
+        "shocked_face_with_exploding_head",
+        "disguised_face",
+        "smiling_face_with_open_mouth_and_smiling_eyes",
+        "grinning_face_with_smiling_eyes",
+        "smiling_face_with_heart_shaped_eyes",
+        "smiling_face_with_sunglasses",
+        "overheated_face",
+        "thumbs_up_sign",
+        "eye",
+        "clown_face",
+        "freezing_face",
+        "grinning_face_with_one_large_and_one_small_eye",
+        "eyes",
         "deciduous_tree",
         "mushroom",
         "rose",
@@ -1275,7 +1273,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         "ringed_planet",
         "earth_globe_europe_africa",
         "white_sun_behind_cloud_with_rain",
-
+        "banana",
         "red_apple",
         "cherries",
         "avocado",
@@ -1293,4 +1291,3 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     ];
 
 }
-

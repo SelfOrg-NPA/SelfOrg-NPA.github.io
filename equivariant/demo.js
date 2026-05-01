@@ -5,6 +5,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     const root = document.getElementById(divId);
     const $ = q => root.querySelector(q);
     const $$ = q => root.querySelectorAll(q);
+    const modelsUrl = new URL('growing_demo/models.json', import.meta.url);
+    const targetImagesBaseUrl = new URL('../growing_demo/target_images/', import.meta.url);
 
     const canvas = $("#demo-canvas");
 
@@ -88,7 +90,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             return a.x * b.y - a.y * b.x;
         }
 
-        
+
     `].concat(param.Inc || [])
     }, target);
 
@@ -560,7 +562,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
     async function init() {
-        const response = await fetch('./growing_demo/models.json');
+        const response = await fetch(modelsUrl);
         models = await response.json();
         let gridBox = $('#target-shelf');
         gridBox.innerHTML = '';
@@ -580,7 +582,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             }
 
 
-            let media_path = "../growing_demo/target_images/" + name + ".png"
+            let media_path = new URL(name + ".png", targetImagesBaseUrl).href
 
             const target_img = document.createElement('div');
             target_img.style.background = "url('" + media_path + "')";
@@ -613,13 +615,12 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
 
+            gridBox.appendChild(target_img);
+
             if (name == params.modelA) {
                 target_img.style.borderColor = "rgb(245 140 44)";
-                gridBox.prepend(target_img);
                 currentTarget = target_img;
                 target_img.click();
-            } else {
-                gridBox.insertBefore(target_img, gridBox.lastElementChild);
             }
 
         }
@@ -1082,20 +1083,6 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
     const growing_targets = [
-        "banana",
-        "shocked_face_with_exploding_head",
-        "disguised_face",
-        "smiling_face_with_open_mouth_and_smiling_eyes",
-        "grinning_face_with_smiling_eyes",
-        "smiling_face_with_heart_shaped_eyes",
-        "smiling_face_with_sunglasses",
-        "overheated_face",
-        "thumbs_up_sign",
-        "eye",
-        "clown_face",
-        "freezing_face",
-        "grinning_face_with_one_large_and_one_small_eye",
-        "eyes",
         "lizard",
         "ghost",
         "lady_beetle",
@@ -1122,6 +1109,20 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         "duck",
         "orangutan",
         "chipmunk",
+
+        "shocked_face_with_exploding_head",
+        "disguised_face",
+        "smiling_face_with_open_mouth_and_smiling_eyes",
+        "grinning_face_with_smiling_eyes",
+        "smiling_face_with_heart_shaped_eyes",
+        "smiling_face_with_sunglasses",
+        "overheated_face",
+        "thumbs_up_sign",
+        "eye",
+        "clown_face",
+        "freezing_face",
+        "grinning_face_with_one_large_and_one_small_eye",
+        "eyes",
         "deciduous_tree",
         "mushroom",
         "rose",
@@ -1131,7 +1132,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         "ringed_planet",
         "earth_globe_europe_africa",
         "white_sun_behind_cloud_with_rain",
-
+        "banana",
         "red_apple",
         "cherries",
         "avocado",
@@ -1149,4 +1150,3 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     ];
 
 }
-

@@ -29,6 +29,13 @@ h1, h2, h3, h4, h5, h6, p, span, li, label, div, section, a {
     color: #fff !important;
 }
 
+#BibTeX,
+#BibTeX pre,
+#BibTeX code {
+    background-color: #000 !important;
+    color: #cacaca !important;
+}
+
 
 #demo {
     font-size: 14px;
