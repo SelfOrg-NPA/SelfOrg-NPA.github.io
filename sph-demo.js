@@ -263,10 +263,20 @@
       const a = Math.random() * 2 * Math.PI;
       return [Math.cos(a), Math.sin(a)];
     }
+    function randomGradientCenter() {
+      const maxOffset = state.initRange * 0.2;
+      return [
+        (Math.random() * 2 - 1) * maxOffset,
+        (Math.random() * 2 - 1) * maxOffset,
+      ];
+    }
 
     function resampleStateCtx() {
       if (state.stateInit === 'gradient') {
-        state.stateCtx = { dirs: [randUnit2D(), randUnit2D(), randUnit2D()] };
+        state.stateCtx = {
+          center: randomGradientCenter(),
+          dirs: [randUnit2D(), randUnit2D(), randUnit2D()],
+        };
       } else if (state.stateInit === 'flat-ch') {
         state.stateCtx = {
           zeroCh: Math.floor(Math.random() * 3),
@@ -283,10 +293,12 @@
         const c = state.stateCtx;
         const invR = 1 / Math.max(1e-9, state.initRange);
         const clamp = (v) => Math.max(-1, Math.min(1, v));
+        const gx = x - c.center[0];
+        const gy = y - c.center[1];
         return [
-          clamp(c.dirs[0][0] * x * invR + c.dirs[0][1] * y * invR),
-          clamp(c.dirs[1][0] * x * invR + c.dirs[1][1] * y * invR),
-          clamp(c.dirs[2][0] * x * invR + c.dirs[2][1] * y * invR),
+          clamp(c.dirs[0][0] * gx * invR + c.dirs[0][1] * gy * invR),
+          clamp(c.dirs[1][0] * gx * invR + c.dirs[1][1] * gy * invR),
+          clamp(c.dirs[2][0] * gx * invR + c.dirs[2][1] * gy * invR),
         ];
       } else if (state.stateInit === 'ring') {
         const angle = Math.atan2(y, x);
@@ -479,7 +491,7 @@
     const DRAW_THEME = {
       canvasBg: '#0b0e12',
       axis: '#56616d',
-      guide: 'rgba(154, 166, 178, 0.45)',
+      guide: 'rgba(186, 198, 209, 0.62)',
       curve: '#e8edf2',
       text: '#dce5ee',
       mutedText: '#a8b3bd',
@@ -597,7 +609,7 @@
       ctx.save();
       ctx.setLineDash([5, 5]);
       ctx.strokeStyle = DRAW_THEME.guide;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 2.4;
       ctx.beginPath();
       ctx.arc(ccx, ccy, epsPx, 0, 2 * Math.PI);
       ctx.stroke();
@@ -616,8 +628,8 @@
         ctx.beginPath();
         ctx.arc(px, py, circleRadiusPx, 0, 2 * Math.PI);
         ctx.fill();
-        ctx.lineWidth = 0.8;
-        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = 'rgba(255,255,255,0.38)';
         ctx.stroke();
       }
 
@@ -627,7 +639,7 @@
       ctx.beginPath();
       ctx.arc(ccx, ccy, centreR, 0, 2 * Math.PI);
       ctx.fill();
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 3.2;
       ctx.strokeStyle = DRAW_THEME.centreStroke;
       ctx.stroke();
       ctx.fillStyle = DRAW_THEME.centreStroke;
@@ -665,7 +677,7 @@
         ctx.fillStyle = rgbStr(s2c(ops.S[0]), s2c(ops.S[1]), s2c(ops.S[2]));
         ctx.fillRect(cx - sz / 2, cy - 38, sz, sz);
         ctx.strokeStyle = DRAW_THEME.centreStroke;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2;
         ctx.strokeRect(cx - sz / 2, cy - 38, sz, sz);
         ctx.restore();
       } else if (mode === 'gradRho') {
@@ -675,7 +687,7 @@
           const norm = arrowScale / Math.max(mag, 1);
           const ax = cx + gx * norm * 0.4;
           const ay = cy + gy * norm * 0.4;
-          drawArrow(cx, cy, ax, ay, DRAW_THEME.curve, 2.5);
+          drawArrow(cx, cy, ax, ay, DRAW_THEME.curve, 3.4);
           ctx.save();
           ctx.font = '11px ui-monospace, Menlo, monospace';
           ctx.fillStyle = DRAW_THEME.text;
@@ -695,7 +707,7 @@
         for (let c = 0; c < 3; c++) {
           const ax = cx + g[c][0] * norm;
           const ay = cy + g[c][1] * norm;
-          drawArrow(cx, cy, ax, ay, colors[c], 2.2);
+          drawArrow(cx, cy, ax, ay, colors[c], 3);
         }
         ctx.save();
         ctx.font = '10px ui-monospace, Menlo, monospace';
@@ -710,8 +722,8 @@
         const a1y = cy + v1[1] * l1 * norm;
         const a2x = cx + v2[0] * l2 * norm;
         const a2y = cy + v2[1] * l2 * norm;
-        drawArrow(cx, cy, a1x, a1y, DRAW_THEME.curve, 2.3);
-        drawArrow(cx, cy, a2x, a2y, DRAW_THEME.mutedText, 2.3);
+        drawArrow(cx, cy, a1x, a1y, DRAW_THEME.curve, 3.1);
+        drawArrow(cx, cy, a2x, a2y, DRAW_THEME.mutedText, 3.1);
         ctx.save();
         ctx.font = '10px ui-monospace, Menlo, monospace';
         ctx.fillStyle = DRAW_THEME.text;
@@ -782,7 +794,7 @@
       c.save();
       c.strokeStyle = DRAW_THEME.guide;
       c.setLineDash([3 * dpr, 3 * dpr]);
-      c.lineWidth = 1 * dpr;
+      c.lineWidth = 1.6 * dpr;
       c.beginPath();
       c.moveTo(rToPx(eps), y0);
       c.lineTo(rToPx(eps), y1);
@@ -802,7 +814,7 @@
 
       if (state.particles.length) {
         const p0 = state.particles[0];
-        for (let i = 1; i < state.particles.length; i++) {
+        for (let i = 0; i < state.particles.length; i++) {
           const pj = state.particles[i];
           const r = Math.hypot(p0.x - pj.x, p0.y - pj.y);
           if (r >= xMax) continue;
@@ -811,7 +823,7 @@
           const py = y1 - (y / maxY) * (y1 - y0);
           c.fillStyle = rgbStr(s2c(pj.r), s2c(pj.g), s2c(pj.b));
           c.beginPath();
-          c.arc(px, py, 4 * dpr, 0, 2 * Math.PI);
+          c.arc(px, py, 7 * dpr, 0, 2 * Math.PI);
           c.fill();
           c.strokeStyle = 'rgba(255,255,255,0.32)';
           c.lineWidth = 0.8 * dpr;
