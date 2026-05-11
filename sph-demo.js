@@ -74,7 +74,7 @@
       </div>
     </details>
 
-    <details open>
+    <details>
       <summary>Initialization</summary>
       <div class="folder-body">
         <div>
@@ -100,7 +100,7 @@
       </div>
     </details>
 
-    <details open>
+    <details>
       <summary>Visualization</summary>
       <div class="folder-body">
         <div>

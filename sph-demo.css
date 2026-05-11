@@ -64,9 +64,8 @@
 .sph-card .kernel-block {
   background: #fffdf6;
   border-radius: 8px;
-  /* Extra bottom padding so the ε tick (set by JS just below the axis, inside
-     the canvas) and the |r| axis label below it don't overlap. */
-  padding: 4px 4px 24px 4px;
+  /* Bottom padding holds the |r| label; the ε tick is positioned by JS. */
+  padding: 4px 4px 20px 4px;
   border: 1px solid #ece4d3;
   flex: 1 1 0;
   min-width: 0;
@@ -82,7 +81,7 @@
 }
 .sph-card .kernel-x-label {
   position: absolute;
-  bottom: 4px;
+  bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
   color: #222;
