@@ -5,10 +5,22 @@
  * lives inline in sph-demo.html, not here.
  */
 .sph-card {
+  --sph-bg: #111418;
+  --sph-panel: #181c21;
+  --sph-panel-soft: #14181d;
+  --sph-canvas: #0b0e12;
+  --sph-border: #2b333c;
+  --sph-border-strong: #3a4652;
+  --sph-text: #e8edf2;
+  --sph-muted: #9aa6b2;
+  --sph-subtle: #6f7d8a;
+  --sph-accent: #66c28a;
+  --sph-accent-strong: #3f9f68;
+  --sph-accent-soft: rgba(102, 194, 138, 0.14);
   max-width: 960px;
   margin: 0 auto;
-  background: #f7f4ec;
-  color: #2a2a2a;
+  background: var(--sph-bg);
+  color: var(--sph-text) !important;
   border-radius: 14px;
   padding: 16px 20px 18px;
   display: grid;
@@ -17,14 +29,14 @@
   justify-content: center;
   column-gap: 16px;
   row-gap: 10px;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 16px 42px rgba(0,0,0,0.58), inset 0 1px 0 rgba(255,255,255,0.04);
   font-family: 'Google Sans', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 .sph-card h2 {
   margin: 0 0 4px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #3a3a3a;
+  color: var(--sph-text) !important;
   grid-column: 1 / -1;
   grid-row: 1;
 }
@@ -39,7 +51,7 @@
 .sph-card .perception-bar .label {
   font-weight: 600;
   font-size: 13px;
-  color: #3a3a3a;
+  color: var(--sph-muted) !important;
   margin-bottom: 2px;
 }
 .sph-card .perception-bar .chip-group {
@@ -62,11 +74,11 @@
   margin-top: 4px;
 }
 .sph-card .kernel-block {
-  background: #fffdf6;
+  background: var(--sph-canvas);
   border-radius: 8px;
   /* Bottom padding holds the |r| label; the ε tick is positioned by JS. */
   padding: 4px 4px 20px 4px;
-  border: 1px solid #ece4d3;
+  border: 1px solid var(--sph-border);
   flex: 1 1 0;
   min-width: 0;
   position: relative;
@@ -75,7 +87,7 @@
   position: absolute;
   top: 6px;
   left: 22px;
-  color: #222;
+  color: var(--sph-text) !important;
   pointer-events: none;
   z-index: 2;
 }
@@ -84,7 +96,7 @@
   bottom: 12px;
   left: 50%;
   transform: translateX(-50%);
-  color: #222;
+  color: var(--sph-text) !important;
   pointer-events: none;
   z-index: 2;
 }
@@ -93,7 +105,7 @@
      so the label always sits just under the dashed ε guide line on the axis. */
   position: absolute;
   transform: translate(-50%, 0);
-  color: #444;
+  color: var(--sph-muted) !important;
   pointer-events: none;
   z-index: 2;
 }
@@ -102,7 +114,7 @@
 .sph-card .kernel-eps-label mjx-container { font-size: 1em; }
 .sph-card .kernel-block .kt {
   font-size: 11px;
-  color: #555;
+  color: var(--sph-muted) !important;
   padding: 2px 4px;
 }
 .sph-card .kernel-block canvas {
@@ -122,9 +134,9 @@
   width: 100%;
   max-width: 440px;
   aspect-ratio: 1;
-  background: #fffdf6;
+  background: var(--sph-canvas);
   border-radius: 10px;
-  border: 1px solid #ece4d3;
+  border: 1px solid var(--sph-border);
   cursor: grab;
   touch-action: none;
   display: block;
@@ -140,8 +152,8 @@
   font-size: 13px;
 }
 .sph-card details {
-  background: #fffdf6;
-  border: 1px solid #ece4d3;
+  background: var(--sph-panel);
+  border: 1px solid var(--sph-border);
   border-radius: 8px;
   padding: 6px 10px 8px;
 }
@@ -150,7 +162,7 @@
   font-weight: 600;
   list-style: none;
   padding: 2px 0;
-  color: #3a3a3a;
+  color: var(--sph-text) !important;
   user-select: none;
 }
 .sph-card details > summary::-webkit-details-marker { display: none; }
@@ -158,7 +170,7 @@
   content: "▸";
   display: inline-block;
   width: 14px;
-  color: #888;
+  color: var(--sph-subtle) !important;
   transition: transform 0.15s;
 }
 .sph-card details[open] > summary::before { content: "▾"; }
@@ -176,22 +188,22 @@
 }
 .sph-card .slider-row .nm {
   font-style: italic;
-  color: #444;
+  color: var(--sph-text) !important;
 }
 .sph-card .slider-row .vl {
   font-variant-numeric: tabular-nums;
-  color: #555;
+  color: var(--sph-muted) !important;
   font-size: 12px;
   text-align: right;
 }
 .sph-card input[type=range] {
-  accent-color: #4a8a5c;
+  accent-color: var(--sph-accent);
   width: 100%;
   margin: 0;
 }
 .sph-card .group-label {
   font-size: 12px;
-  color: #666;
+  color: var(--sph-muted) !important;
   margin-top: 2px;
 }
 .sph-card .chip-group {
@@ -203,49 +215,55 @@
   display: inline-block;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid #d0c8b8;
-  background: #fff;
+  border: 1px solid var(--sph-border-strong);
+  background: #101419;
   cursor: pointer;
   font-size: 12px;
-  color: #444;
+  color: var(--sph-text) !important;
   user-select: none;
   font-family: inherit;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
-.sph-card .chip:hover { background: #f3eedf; }
+.sph-card .chip:hover {
+  background: var(--sph-accent-soft);
+  border-color: var(--sph-accent);
+}
 .sph-card .chip.active {
-  background: #4a8a5c;
-  color: #fff;
-  border-color: #3a7a4c;
+  background: var(--sph-accent-strong);
+  color: #fff !important;
+  border-color: var(--sph-accent);
 }
 .sph-card .btn {
-  background: #fff;
-  border: 1px solid #d0c8b8;
+  background: #101419;
+  border: 1px solid var(--sph-border-strong);
   border-radius: 6px;
   padding: 5px 10px;
   cursor: pointer;
   font-family: inherit;
   font-size: 12px;
-  color: #444;
+  color: var(--sph-text) !important;
 }
-.sph-card .btn:hover { background: #f3eedf; }
+.sph-card .btn:hover {
+  background: var(--sph-accent-soft);
+  border-color: var(--sph-accent);
+}
 .sph-card .btn.primary {
-  background: #4a8a5c;
-  color: #fff;
-  border-color: #3a7a4c;
+  background: var(--sph-accent-strong);
+  color: #fff !important;
+  border-color: var(--sph-accent);
   font-weight: 600;
   padding: 7px 12px;
   margin-top: 4px;
 }
-.sph-card .btn.primary:hover { background: #3a7a4c; }
+.sph-card .btn.primary:hover { background: #34875a; }
 .sph-card .zoom-readout {
   font-size: 12px;
-  color: #666;
+  color: var(--sph-muted) !important;
   font-variant-numeric: tabular-nums;
 }
 .sph-card .hint {
   font-size: 11px;
-  color: #888;
+  color: var(--sph-subtle) !important;
   line-height: 1.4;
   padding: 4px 2px 0;
   text-align: center;
@@ -256,7 +274,7 @@
   text-align: center;
   min-height: 36px;
   padding: 8px 4px 0;
-  color: #1a2a4a;
+  color: var(--sph-text) !important;
   overflow-x: auto;
 }
 .sph-card .formula-display mjx-container { font-size: 1.1em; }
@@ -269,13 +287,13 @@
   position: absolute;
   transform: translate(-50%, -100%);
   pointer-events: none;
-  color: #1a2a4a;
+  color: #e8edf2 !important;
   font: italic 600 18px Georgia, "Times New Roman", serif;
   line-height: 1;
   display: none;
   user-select: none;
   z-index: 100;
-  text-shadow: 0 0 3px #fffdf6, 0 0 3px #fffdf6, 0 0 3px #fffdf6;
+  text-shadow: 0 0 4px #0b0e12, 0 0 4px #0b0e12, 0 0 8px #0b0e12;
 }
 
 /* Narrow layout */

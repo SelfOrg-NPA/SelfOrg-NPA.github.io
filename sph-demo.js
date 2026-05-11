@@ -195,6 +195,7 @@
       ];
     }
     function worldSizeToPx(ws) { return ws / state.view.halfSpan * viewScalePx(); }
+    function worldSizeToDefaultViewPx(ws) { return ws / DEFAULT_HALFSPAN * viewScalePx(); }
     function cssToCanvasPx(cssX, cssY) {
       const rect = mainCanvas.getBoundingClientRect();
       return [
@@ -475,6 +476,18 @@
       return `rgba(${cl(r)},${cl(g)},${cl(b)},${a})`;
     }
     function s2c(v) { return Math.max(0, Math.min(1, (v + 1) * 0.5)); }
+    const DRAW_THEME = {
+      canvasBg: '#0b0e12',
+      axis: '#56616d',
+      guide: 'rgba(154, 166, 178, 0.45)',
+      curve: '#e8edf2',
+      text: '#dce5ee',
+      mutedText: '#a8b3bd',
+      centreStroke: '#f0f5f9',
+      red: '#ff6b6b',
+      green: '#6bd17d',
+      blue: '#70a7ff',
+    };
 
     // ----- S̃ HTML overlay -----
     const stildeLabel = mount.querySelector('#stilde-label');
@@ -538,7 +551,7 @@
           }
         }
       }
-      const bgR = 0xff, bgG = 0xfd, bgB = 0xf6;
+      const bgR = 0x0b, bgG = 0x0e, bgB = 0x12;
       for (let i = 0; i < lrW * lrH; i++) {
         const i4 = i * 4;
         const w = accW[i];
@@ -574,7 +587,7 @@
       fitCanvas(kWCanvas);
       fitCanvas(kGCanvas);
       const W_ = mainCanvas.width, H_ = mainCanvas.height;
-      ctx.fillStyle = '#fffdf6';
+      ctx.fillStyle = DRAW_THEME.canvasBg;
       ctx.fillRect(0, 0, W_, H_);
       computeAllRho();
       if (state.bgMode === 'splat') drawSplatBackground();
@@ -583,17 +596,19 @@
       const epsPx = worldSizeToPx(state.epsilon);
       ctx.save();
       ctx.setLineDash([5, 5]);
-      ctx.strokeStyle = 'rgba(60, 60, 60, 0.7)';
+      ctx.strokeStyle = DRAW_THEME.guide;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(ccx, ccy, epsPx, 0, 2 * Math.PI);
       ctx.stroke();
       ctx.restore();
 
-      const sigmaPxWorld = worldSizeToPx(state.sigma);
+      const sigmaPx = state.bgMode === 'circles'
+        ? worldSizeToDefaultViewPx(state.sigma)
+        : worldSizeToPx(state.sigma);
       const circleRadiusPx = state.bgMode === 'circles'
-        ? Math.max(3, sigmaPxWorld * 0.4)
-        : Math.max(3, Math.min(8, sigmaPxWorld * 0.15 + 3));
+        ? Math.max(3, sigmaPx * 0.4)
+        : Math.max(3, Math.min(8, sigmaPx * 0.15 + 3));
       for (let i = 1; i < state.particles.length; i++) {
         const p = state.particles[i];
         const [px, py] = worldToPx(p.x, p.y);
@@ -602,7 +617,7 @@
         ctx.arc(px, py, circleRadiusPx, 0, 2 * Math.PI);
         ctx.fill();
         ctx.lineWidth = 0.8;
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
         ctx.stroke();
       }
 
@@ -613,9 +628,9 @@
       ctx.arc(ccx, ccy, centreR, 0, 2 * Math.PI);
       ctx.fill();
       ctx.lineWidth = 2.5;
-      ctx.strokeStyle = '#1a2a4a';
+      ctx.strokeStyle = DRAW_THEME.centreStroke;
       ctx.stroke();
-      ctx.fillStyle = '#1a2a4a';
+      ctx.fillStyle = DRAW_THEME.centreStroke;
       ctx.beginPath();
       ctx.arc(ccx, ccy, 2, 0, 2 * Math.PI);
       ctx.fill();
@@ -633,14 +648,14 @@
       if (mode === 'rho') {
         ctx.save();
         ctx.font = '12px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = '#1a2a4a';
+        ctx.fillStyle = DRAW_THEME.text;
         ctx.textBaseline = 'middle';
         ctx.fillText('ρ = ' + ops.rho.toFixed(3), cx + 14, cy - 14);
         ctx.restore();
       } else if (mode === 'count') {
         ctx.save();
         ctx.font = '12px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = '#1a2a4a';
+        ctx.fillStyle = DRAW_THEME.text;
         ctx.textBaseline = 'middle';
         ctx.fillText('N = ' + ops.count, cx + 14, cy - 14);
         ctx.restore();
@@ -649,7 +664,7 @@
         const sz = 24;
         ctx.fillStyle = rgbStr(s2c(ops.S[0]), s2c(ops.S[1]), s2c(ops.S[2]));
         ctx.fillRect(cx - sz / 2, cy - 38, sz, sz);
-        ctx.strokeStyle = '#1a2a4a';
+        ctx.strokeStyle = DRAW_THEME.centreStroke;
         ctx.lineWidth = 1.5;
         ctx.strokeRect(cx - sz / 2, cy - 38, sz, sz);
         ctx.restore();
@@ -660,16 +675,16 @@
           const norm = arrowScale / Math.max(mag, 1);
           const ax = cx + gx * norm * 0.4;
           const ay = cy + gy * norm * 0.4;
-          drawArrow(cx, cy, ax, ay, '#222', 2.5);
+          drawArrow(cx, cy, ax, ay, DRAW_THEME.curve, 2.5);
           ctx.save();
           ctx.font = '11px ui-monospace, Menlo, monospace';
-          ctx.fillStyle = '#222';
+          ctx.fillStyle = DRAW_THEME.text;
           ctx.fillText('∇ρ', ax + 4, ay - 4);
           ctx.restore();
         }
       } else if (mode === 'grad0S' || mode === 'grad1S') {
         const g = mode === 'grad0S' ? ops.grad0S : ops.grad1S;
-        const colors = ['#d23a3a', '#2a9d2a', '#2a6ad2'];
+        const colors = [DRAW_THEME.red, DRAW_THEME.green, DRAW_THEME.blue];
         let maxMag = 0;
         for (let c = 0; c < 3; c++) {
           const mg = Math.hypot(g[c][0], g[c][1]);
@@ -684,7 +699,7 @@
         }
         ctx.save();
         ctx.font = '10px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = '#444';
+        ctx.fillStyle = DRAW_THEME.text;
         ctx.fillText((mode === 'grad0S' ? '∇₀S' : '∇₁S'), cx + 12, cy + 14);
         ctx.restore();
       } else if (mode === 'M') {
@@ -695,11 +710,11 @@
         const a1y = cy + v1[1] * l1 * norm;
         const a2x = cx + v2[0] * l2 * norm;
         const a2y = cy + v2[1] * l2 * norm;
-        drawArrow(cx, cy, a1x, a1y, '#111', 2.3);
-        drawArrow(cx, cy, a2x, a2y, '#111', 2.3);
+        drawArrow(cx, cy, a1x, a1y, DRAW_THEME.curve, 2.3);
+        drawArrow(cx, cy, a2x, a2y, DRAW_THEME.mutedText, 2.3);
         ctx.save();
         ctx.font = '10px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = '#444';
+        ctx.fillStyle = DRAW_THEME.text;
         ctx.fillText('M eig', cx + 12, cy + 14);
         ctx.restore();
       }
@@ -712,7 +727,7 @@
     function drawKernelOnto(canvas, c, fn, epsLabel) {
       const W_ = canvas.width, H_ = canvas.height;
       c.clearRect(0, 0, W_, H_);
-      c.fillStyle = '#fffdf6';
+      c.fillStyle = DRAW_THEME.canvasBg;
       c.fillRect(0, 0, W_, H_);
       const dpr = window.devicePixelRatio || 1;
       const fs = 13 * dpr;
@@ -735,7 +750,7 @@
       const x0 = padL, x1 = W_ - padR;
       const y0 = padT, y1 = H_ - padB;
       const rToPx = (r) => x0 + (r / xMax) * (x1 - x0);
-      const axisColor = '#bdb6a4';
+      const axisColor = DRAW_THEME.axis;
       const axisW = 1 * dpr;
       const ah = 6 * dpr;
       const aw = 3.2 * dpr;
@@ -765,7 +780,7 @@
       c.fill();
 
       c.save();
-      c.strokeStyle = 'rgba(80, 80, 80, 0.45)';
+      c.strokeStyle = DRAW_THEME.guide;
       c.setLineDash([3 * dpr, 3 * dpr]);
       c.lineWidth = 1 * dpr;
       c.beginPath();
@@ -774,7 +789,7 @@
       c.stroke();
       c.restore();
 
-      c.strokeStyle = '#111';
+      c.strokeStyle = DRAW_THEME.curve;
       c.lineWidth = 2 * dpr;
       c.beginPath();
       for (let i = 0; i < samples.length; i++) {
@@ -798,13 +813,13 @@
           c.beginPath();
           c.arc(px, py, 4 * dpr, 0, 2 * Math.PI);
           c.fill();
-          c.strokeStyle = 'rgba(0,0,0,0.4)';
+          c.strokeStyle = 'rgba(255,255,255,0.32)';
           c.lineWidth = 0.8 * dpr;
           c.stroke();
         }
       }
 
-      c.fillStyle = '#444';
+      c.fillStyle = DRAW_THEME.mutedText;
       c.font = `${fs}px ui-monospace, Menlo, monospace`;
       c.textBaseline = 'top';
       c.textAlign = 'center';
