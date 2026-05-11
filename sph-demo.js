@@ -19,10 +19,10 @@
   // ============================================================
   const SPH_DEMO_TEMPLATE = String.raw`
 <div class="sph-card">
-  <h2>SPH perception</h2>
+  <h2>SPH Perception</h2>
 
   <div class="perception-bar">
-    <span class="label">Perception:</span>
+    <span class="label">Perception Operators:</span>
     <div class="chip-group" data-group="perception">
       <button class="chip" data-val="rho"        data-tex="\rho">(density)</button>
       <button class="chip" data-val="count"      data-tex="N">(count)</button>
