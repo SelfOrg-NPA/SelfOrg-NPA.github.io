@@ -1,9 +1,22 @@
 /* SPH Perception Demo — shared styles
  * Used by both sph-demo.html (standalone) and index.html (integrated).
- * All rules are scoped under .sph-card / .stilde-label / .kernel-* so they
+ * All rules are scoped under .sph-card / .canvas-math-label / .stilde-label / .kernel-* so they
  * cannot leak into the host page. The standalone-only dark body background
  * lives inline in sph-demo.html, not here.
  */
+.sph-demo-mount {
+  position: relative;
+}
+.sph-demo-explainer {
+  max-width: 900px;
+  margin: 24px auto 0;
+  color: #cbd3dc !important;
+  font-size: 0.98rem;
+  line-height: 1.65;
+}
+.sph-demo-explainer p {
+  color: #cbd3dc !important;
+}
 .sph-card {
   --sph-bg: #111418;
   --sph-panel: #181c21;
@@ -281,19 +294,31 @@
 .sph-card .chip-math { margin-right: 5px; }
 .sph-card .chip-math mjx-container { font-size: 1em; }
 
-/* S̃ label rendered as an HTML overlay positioned in document coords —
-   canvas does not handle combining tilde well. */
+/* Canvas annotations rendered as HTML overlays so MathJax can draw the glyphs. */
+.canvas-math-label,
 .stilde-label {
   position: absolute;
-  transform: translate(-50%, -100%);
   pointer-events: none;
   color: #e8edf2 !important;
-  font: italic 600 18px Georgia, "Times New Roman", serif;
   line-height: 1;
   display: none;
   user-select: none;
   z-index: 100;
   text-shadow: 0 0 4px #0b0e12, 0 0 4px #0b0e12, 0 0 8px #0b0e12;
+}
+.canvas-math-label {
+  transform: translate(0, -50%);
+}
+.stilde-label {
+  transform: translate(-50%, -100%);
+}
+.canvas-math-label mjx-container {
+  color: #e8edf2 !important;
+  font-size: 1.3em !important;
+}
+.stilde-label mjx-container {
+  color: #e8edf2 !important;
+  font-size: 1.25em !important;
 }
 
 /* Narrow layout */

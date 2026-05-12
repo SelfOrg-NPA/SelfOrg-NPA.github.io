@@ -93,8 +93,8 @@
           <div class="group-label">State</div>
           <div class="chip-group" data-group="stateInit">
             <button class="chip" data-val="random">Random</button>
-            <button class="chip active" data-val="gradient">Gradient</button>
-            <button class="chip" data-val="ring">Ring</button>
+            <button class="chip" data-val="gradient">Gradient</button>
+            <button class="chip active" data-val="ring">Rainbow</button>
           </div>
         </div>
       </div>
@@ -130,6 +130,7 @@
   </div>
 </div>
 
+<div class="canvas-math-label" id="canvas-math-label"></div>
 <div class="stilde-label" id="stilde-label">\(\tilde{S}\)</div>
 `;
 
@@ -148,7 +149,7 @@
       sigma: 0.10,
       initRange: 0.80,
       posInit: 'uniform',
-      stateInit: 'gradient',
+      stateInit: 'ring',
       bgMode: 'circles',
       perception: 'grad1S',
       view: { cx: 0, cy: 0, halfSpan: 1.2 },
@@ -503,18 +504,38 @@
 
     // ----- S̃ HTML overlay -----
     const stildeLabel = mount.querySelector('#stilde-label');
+    const canvasMathLabel = mount.querySelector('#canvas-math-label');
+    let canvasMathTex = '';
+    function positionCanvasOverlay(el, cx_canvas, cy_canvas, dx, dy) {
+      const rect = mainCanvas.getBoundingClientRect();
+      const mountRect = mount.getBoundingClientRect();
+      const scaleX = rect.width  / mainCanvas.width;
+      const scaleY = rect.height / mainCanvas.height;
+      const x = rect.left - mountRect.left + (cx_canvas + dx) * scaleX;
+      const y = rect.top  - mountRect.top  + (cy_canvas + dy) * scaleY;
+      el.style.left = x + 'px';
+      el.style.top  = y + 'px';
+    }
+    function setCanvasMathLabel(tex, cx_canvas, cy_canvas, dx, dy) {
+      if (!tex) {
+        canvasMathLabel.style.display = 'none';
+        canvasMathTex = '';
+        return;
+      }
+      positionCanvasOverlay(canvasMathLabel, cx_canvas, cy_canvas, dx, dy);
+      canvasMathLabel.style.display = 'inline-block';
+      if (tex !== canvasMathTex) {
+        canvasMathTex = tex;
+        canvasMathLabel.innerHTML = `\\(${tex}\\)`;
+        queueTypeset([canvasMathLabel]);
+      }
+    }
     function positionStildeLabel(cx_canvas, cy_canvas) {
       if (state.perception !== 'S') {
         stildeLabel.style.display = 'none';
         return;
       }
-      const rect = mainCanvas.getBoundingClientRect();
-      const scaleX = rect.width  / mainCanvas.width;
-      const scaleY = rect.height / mainCanvas.height;
-      const x = rect.left + window.scrollX + cx_canvas * scaleX;
-      const y = rect.top  + window.scrollY + (cy_canvas - 16) * scaleY;
-      stildeLabel.style.left = x + 'px';
-      stildeLabel.style.top  = y + 'px';
+      positionCanvasOverlay(stildeLabel, cx_canvas, cy_canvas, 0, -16);
       stildeLabel.style.display = 'inline-block';
     }
 
@@ -655,23 +676,17 @@
 
     function drawPerceptionOverlay(cx, cy, ops) {
       const mode = state.perception;
-      if (mode === 'none') return;
+      if (mode === 'none') {
+        setCanvasMathLabel(null);
+        return;
+      }
       const arrowScale = worldSizeToPx(state.epsilon) * 1.4;
       if (mode === 'rho') {
-        ctx.save();
-        ctx.font = '12px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = DRAW_THEME.text;
-        ctx.textBaseline = 'middle';
-        ctx.fillText('ρ = ' + ops.rho.toFixed(3), cx + 14, cy - 14);
-        ctx.restore();
+        setCanvasMathLabel(`\\rho = ${ops.rho.toFixed(3)}`, cx, cy, 18, -18);
       } else if (mode === 'count') {
-        ctx.save();
-        ctx.font = '12px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = DRAW_THEME.text;
-        ctx.textBaseline = 'middle';
-        ctx.fillText('N = ' + ops.count, cx + 14, cy - 14);
-        ctx.restore();
+        setCanvasMathLabel(`N = ${ops.count}`, cx, cy, 18, -18);
       } else if (mode === 'S') {
+        setCanvasMathLabel(null);
         ctx.save();
         const sz = 24;
         ctx.fillStyle = rgbStr(s2c(ops.S[0]), s2c(ops.S[1]), s2c(ops.S[2]));
@@ -688,11 +703,9 @@
           const ax = cx + gx * norm * 0.4;
           const ay = cy + gy * norm * 0.4;
           drawArrow(cx, cy, ax, ay, DRAW_THEME.curve, 3.4);
-          ctx.save();
-          ctx.font = '11px ui-monospace, Menlo, monospace';
-          ctx.fillStyle = DRAW_THEME.text;
-          ctx.fillText('∇ρ', ax + 4, ay - 4);
-          ctx.restore();
+          setCanvasMathLabel('\\nabla\\rho', ax, ay, 8, -8);
+        } else {
+          setCanvasMathLabel(null);
         }
       } else if (mode === 'grad0S' || mode === 'grad1S') {
         const g = mode === 'grad0S' ? ops.grad0S : ops.grad1S;
@@ -709,11 +722,7 @@
           const ay = cy + g[c][1] * norm;
           drawArrow(cx, cy, ax, ay, colors[c], 3);
         }
-        ctx.save();
-        ctx.font = '10px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = DRAW_THEME.text;
-        ctx.fillText((mode === 'grad0S' ? '∇₀S' : '∇₁S'), cx + 12, cy + 14);
-        ctx.restore();
+        setCanvasMathLabel(mode === 'grad0S' ? '\\nabla_{0}S' : '\\nabla_{1}S', cx, cy, 16, 18);
       } else if (mode === 'M') {
         const { v1, l1, v2, l2 } = stabilizeEig(eig2x2(ops.M));
         const maxLam = Math.max(Math.abs(l1), Math.abs(l2), 1e-9);
@@ -724,11 +733,7 @@
         const a2y = cy + v2[1] * l2 * norm;
         drawArrow(cx, cy, a1x, a1y, DRAW_THEME.curve, 3.1);
         drawArrow(cx, cy, a2x, a2y, DRAW_THEME.mutedText, 3.1);
-        ctx.save();
-        ctx.font = '10px ui-monospace, Menlo, monospace';
-        ctx.fillStyle = DRAW_THEME.text;
-        ctx.fillText('M eig', cx + 12, cy + 14);
-        ctx.restore();
+        setCanvasMathLabel('\\mathrm{eig}(\\mathbf{M})', cx, cy, 16, 18);
       }
     }
 
