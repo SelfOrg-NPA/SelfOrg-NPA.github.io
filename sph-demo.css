@@ -89,11 +89,14 @@
 .sph-card .kernel-block {
   background: var(--sph-canvas);
   border-radius: 8px;
-  /* Bottom padding holds the |r| label; the ε tick is positioned by JS. */
-  padding: 4px 4px 20px 4px;
   border: 1px solid var(--sph-border);
   flex: 1 1 0;
   min-width: 0;
+  overflow: hidden;
+}
+.sph-card .kernel-plot {
+  /* Bottom padding holds the |r| label; the epsilon tick is positioned by JS. */
+  padding: 4px 4px 20px 4px;
   position: relative;
 }
 .sph-card .kernel-y-label {
@@ -134,6 +137,17 @@
   display: block;
   width: 100%;
   height: 150px;
+}
+.sph-card .kernel-formula {
+  border-top: 1px solid var(--sph-border);
+  padding: 8px 8px 10px;
+  color: var(--sph-text) !important;
+  overflow-x: auto;
+  min-height: 54px;
+}
+.sph-card .kernel-formula mjx-container {
+  font-size: 0.78em;
+  margin: 0 !important;
 }
 .sph-card .main {
   grid-column: 2;

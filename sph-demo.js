@@ -44,16 +44,39 @@
 
   <div class="kernels">
     <div class="kernel-block">
-      <div class="kernel-y-label">\(W_\epsilon(r)\)</div>
-      <canvas id="kernel-w"></canvas>
-      <div class="kernel-eps-label">\(\epsilon\)</div>
-      <div class="kernel-x-label">\(|r|\)</div>
+      <div class="kernel-plot">
+        <div class="kernel-y-label">\(W_\epsilon(r)\)</div>
+        <canvas id="kernel-w"></canvas>
+        <div class="kernel-eps-label">\(\epsilon\)</div>
+        <div class="kernel-x-label">\(|r|\)</div>
+      </div>
+      <div class="kernel-formula">
+        \[
+          W_\epsilon(r)=
+          \begin{cases}
+            \dfrac{4}{\pi\epsilon^8}\left(\epsilon^2-r^2\right)^3, & 0 \le r < \epsilon,\\
+            0, & \text{otherwise}.
+          \end{cases}
+        \]
+      </div>
     </div>
     <div class="kernel-block">
-      <div class="kernel-y-label">\(\|\nabla W_\epsilon(r)\|\)</div>
-      <canvas id="kernel-gradw"></canvas>
-      <div class="kernel-eps-label">\(\epsilon\)</div>
-      <div class="kernel-x-label">\(|r|\)</div>
+      <div class="kernel-plot">
+        <div class="kernel-y-label">\(\|\nabla W_\epsilon(r)\|\)</div>
+        <canvas id="kernel-gradw"></canvas>
+        <div class="kernel-eps-label">\(\epsilon\)</div>
+        <div class="kernel-x-label">\(|r|\)</div>
+      </div>
+      <div class="kernel-formula">
+        \[
+          \nabla W_\epsilon(\mathbf{r})=
+          \begin{cases}
+            \dfrac{10}{\pi\epsilon^5}\left(\epsilon-\|\mathbf{r}\|\right)^2
+            \dfrac{\mathbf{r}}{\|\mathbf{r}\|}, & 0 < \|\mathbf{r}\| < \epsilon,\\
+            \mathbf{0}, & \text{otherwise}.
+          \end{cases}
+        \]
+      </div>
     </div>
   </div>
 
@@ -846,7 +869,7 @@
       // x-axis line, horizontally centred on the dashed guide. Coordinates are
       // computed from the canvas's current bounding rect so we convert from the
       // canvas-internal (DPR-scaled) coords used above into CSS px relative to
-      // the kernel-block, which is the positioning ancestor.
+      // the kernel plot wrapper, which is the positioning ancestor.
       if (epsLabel) {
         const r = canvas.getBoundingClientRect();
         const cssToCanvasX = r.width  / W_;
