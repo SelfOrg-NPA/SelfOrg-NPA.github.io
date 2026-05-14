@@ -62,14 +62,14 @@
     </div>
     <div class="kernel-block">
       <div class="kernel-plot">
-        <div class="kernel-y-label">\(\|\nabla W_\epsilon(r)\|\)</div>
+        <div class="kernel-y-label">\(\|W_\epsilon^{\nabla}(r)\|\)</div>
         <canvas id="kernel-gradw"></canvas>
         <div class="kernel-eps-label">\(\epsilon\)</div>
         <div class="kernel-x-label">\(|r|\)</div>
       </div>
       <div class="kernel-formula">
         \[
-          \nabla W_\epsilon(\mathbf{r})=
+          W_\epsilon^{\nabla}(\mathbf{r})=
           \begin{cases}
             \dfrac{10}{\pi\epsilon^5}\left(\epsilon-\|\mathbf{r}\|\right)^2
             \dfrac{\mathbf{r}}{\|\mathbf{r}\|}, & 0 < \|\mathbf{r}\| < \epsilon,\\
@@ -384,7 +384,7 @@
       const Si = [pi.r, pi.g, pi.b];
       for (let j = 0; j < N; j++) {
         const pj = state.particles[j];
-        // r_ji = x_j - x_i  →  ∇W(r_ji) points from i toward j.
+        // r_ji = x_j - x_i  →  W^∇(r_ji) points from i toward j.
         const rx = pj.x - pi.x;
         const ry = pj.y - pi.y;
         const rmag = Math.hypot(rx, ry);
@@ -960,10 +960,10 @@
       rho:     '\\rho_i \\;=\\; \\sum_j m_j \\, W_\\epsilon(\\mathbf{r}_{ji})',
       count:   'N_i \\;=\\; \\Bigl|\\{\\, j : \\|\\mathbf{r}_{ji}\\| < \\epsilon \\,\\}\\Bigr|',
       S:       '\\tilde{\\mathbf{S}}_i \\;=\\; \\sum_j \\frac{m_j}{\\rho_j}\\, \\mathbf{S}_j \\, W_\\epsilon(\\mathbf{r}_{ji})',
-      grad0S:  '\\nabla_{0}\\mathbf{S}_i \\;=\\; \\sum_j \\frac{m_j}{\\rho_j}\\, (\\mathbf{S}_j - \\mathbf{S}_i)\\, \\nabla W_\\epsilon(\\mathbf{r}_{ji})^{\\!\\top}',
+      grad0S:  '\\nabla_{0}\\mathbf{S}_i \\;=\\; \\sum_j \\frac{m_j}{\\rho_j}\\, (\\mathbf{S}_j - \\mathbf{S}_i)\\, W_\\epsilon^{\\nabla}(\\mathbf{r}_{ji})^{\\!\\top}',
       grad1S:  '\\nabla_{1}\\mathbf{S}_i \\;=\\; \\mathbf{M}_i^{-1}\\, \\nabla_{0}\\mathbf{S}_i',
-      gradRho: '\\nabla \\rho_i \\;=\\; \\sum_j m_j \\, \\nabla W_\\epsilon(\\mathbf{r}_{ji})',
-      M:       '\\mathbf{M}_i \\;=\\; \\sum_j \\frac{m_j}{\\rho_j}\\, \\mathbf{r}_{ji}\\, \\nabla W_\\epsilon(\\mathbf{r}_{ji})^{\\!\\top}',
+      gradRho: '\\nabla \\rho_i \\;=\\; \\sum_j m_j \\, W_\\epsilon^{\\nabla}(\\mathbf{r}_{ji})',
+      M:       '\\mathbf{M}_i \\;=\\; \\sum_j \\frac{m_j}{\\rho_j}\\, \\mathbf{r}_{ji}\\, W_\\epsilon^{\\nabla}(\\mathbf{r}_{ji})^{\\!\\top}',
     };
     const formulaEl = mount.querySelector('#formula-display');
 

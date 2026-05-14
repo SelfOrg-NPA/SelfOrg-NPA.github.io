@@ -522,8 +522,16 @@
 
     <!-- SPH perception demo (extracted to sph-demo.css + sph-demo.js) -->
     <section class="section">
+        
         <div class="container is-max-desktop">
+            <div class="columns is-centered has-text-centered">
+                <div class="column is-four-fifths">
+                    <h2 class="title is-3">How Do Particles Perceive Their Neighbors?</h2>
+                </div>
+            </div>
+            
             <div class="sph-demo-mount"></div>
+            
             <div class="content has-text-justified sph-demo-explainer">
                 <p>
                     SPH perception is the particle-based counterpart of convolutional perception in grid-based Neural
@@ -541,7 +549,7 @@
                     live in 2D, all particle masses are set to \(m_i=1.0\), and each state has only three channels,
                     shown as RGB color; the center particle's state is fixed to \((0,0,0)\). The dashed circle marks the
                     \(\epsilon\)-neighborhood, and the bottom plots show the smoothing kernel \(W_\epsilon(r)\) and
-                    spiky gradient kernel's magnitude \(\|\nabla W_\epsilon(r)\|\) as functions of distance \(|r|\), with dots
+                    spiky gradient kernel's magnitude \(\|W_\epsilon^{\nabla}(r)\|\) as functions of distance \(|r|\), with dots
                     indicating where particles fall along those kernels. Density and count display scalar neighborhood
                     summaries; smoothing shows the kernel-averaged RGB state; and \(\nabla\rho\) points toward the
                     direction where particle density increases, indicating which side of the center particle is more
