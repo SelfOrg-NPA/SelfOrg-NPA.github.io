@@ -142,6 +142,16 @@
     </details>
 
     <details>
+      <summary>Gradient Normalization</summary>
+      <div class="folder-body">
+        <div class="chip-group" data-group="gradientNorm">
+          <button class="chip active" data-val="log">Log norm</button>
+          <button class="chip" data-val="none">No norm</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
       <summary>Viewport</summary>
       <div class="folder-body">
         <button class="btn" id="reset-view-btn">Reset view</button>
@@ -174,6 +184,7 @@
       posInit: 'uniform',
       stateInit: 'ring',
       bgMode: 'circles',
+      gradientNorm: 'log',
       perception: 'grad1S',
       view: { cx: 0, cy: 0, halfSpan: 1.2 },
       rho: null,
@@ -524,6 +535,13 @@
       green: '#6bd17d',
       blue: '#70a7ff',
     };
+    function gradientDisplayVector(v) {
+      if (state.gradientNorm !== 'log') return v;
+      const mag = Math.hypot(v[0], v[1]);
+      if (mag < 1e-9) return [0, 0];
+      const scale = Math.log1p(mag) / mag;
+      return [v[0] * scale, v[1] * scale];
+    }
 
     // ----- S̃ HTML overlay -----
     const stildeLabel = mount.querySelector('#stilde-label');
@@ -719,12 +737,10 @@
         ctx.strokeRect(cx - sz / 2, cy - 38, sz, sz);
         ctx.restore();
       } else if (mode === 'gradRho') {
-        const [gx, gy] = ops.gradRho;
-        const mag = Math.hypot(gx, gy);
-        if (mag > 1e-9) {
-          const norm = arrowScale / Math.max(mag, 1);
-          const ax = cx + gx * norm * 0.4;
-          const ay = cy + gy * norm * 0.4;
+        const [gx, gy] = gradientDisplayVector(ops.gradRho);
+        if (Math.hypot(gx, gy) > 1e-9) {
+          const ax = cx + gx * arrowScale * 0.3;
+          const ay = cy + gy * arrowScale * 0.3;
           drawArrow(cx, cy, ax, ay, DRAW_THEME.curve, 3.4);
           setCanvasMathLabel('\\nabla\\rho', ax, ay, 8, -8);
         } else {
@@ -733,16 +749,10 @@
       } else if (mode === 'grad0S' || mode === 'grad1S') {
         const g = mode === 'grad0S' ? ops.grad0S : ops.grad1S;
         const colors = [DRAW_THEME.red, DRAW_THEME.green, DRAW_THEME.blue];
-        let maxMag = 0;
         for (let c = 0; c < 3; c++) {
-          const mg = Math.hypot(g[c][0], g[c][1]);
-          if (mg > maxMag) maxMag = mg;
-        }
-        if (maxMag < 1e-9) maxMag = 1;
-        const norm = arrowScale / maxMag * 0.8;
-        for (let c = 0; c < 3; c++) {
-          const ax = cx + g[c][0] * norm;
-          const ay = cy + g[c][1] * norm;
+          const [gx, gy] = gradientDisplayVector(g[c]);
+          const ax = cx + gx * arrowScale * 0.5;
+          const ay = cy + gy * arrowScale * 0.5;
           drawArrow(cx, cy, ax, ay, colors[c], 3);
         }
         setCanvasMathLabel(mode === 'grad0S' ? '\\nabla_{0}S' : '\\nabla_{1}S', cx, cy, 16, 18);
@@ -919,6 +929,7 @@
     }
     setupChipGroup('perception', 'perception', { onPick: updateFormulaDisplay });
     setupChipGroup('bgMode', 'bgMode');
+    setupChipGroup('gradientNorm', 'gradientNorm');
     setupChipGroup('posInit', 'posInit', { resample: true });
     setupChipGroup('stateInit', 'stateInit', { resample: true });
 
