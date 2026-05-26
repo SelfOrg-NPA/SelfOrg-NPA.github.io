@@ -535,6 +535,9 @@
       green: '#6bd17d',
       blue: '#70a7ff',
     };
+    const SMOOTHING_PATCH_SIZE = 34;
+    const SMOOTHING_PATCH_GAP = 26;
+    const SMOOTHING_LABEL_DY = -16;
     function gradientDisplayVector(v) {
       if (state.gradientNorm !== 'log') return v;
       const mag = Math.hypot(v[0], v[1]);
@@ -576,7 +579,7 @@
         stildeLabel.style.display = 'none';
         return;
       }
-      positionCanvasOverlay(stildeLabel, cx_canvas, cy_canvas, 0, -16);
+      positionCanvasOverlay(stildeLabel, cx_canvas, cy_canvas, 0, SMOOTHING_LABEL_DY);
       stildeLabel.style.display = 'inline-block';
     }
 
@@ -729,12 +732,13 @@
       } else if (mode === 'S') {
         setCanvasMathLabel(null);
         ctx.save();
-        const sz = 24;
+        const sz = SMOOTHING_PATCH_SIZE;
+        const patchY = cy + SMOOTHING_PATCH_GAP;
         ctx.fillStyle = rgbStr(s2c(ops.S[0]), s2c(ops.S[1]), s2c(ops.S[2]));
-        ctx.fillRect(cx - sz / 2, cy - 38, sz, sz);
+        ctx.fillRect(cx - sz / 2, patchY, sz, sz);
         ctx.strokeStyle = DRAW_THEME.centreStroke;
         ctx.lineWidth = 2;
-        ctx.strokeRect(cx - sz / 2, cy - 38, sz, sz);
+        ctx.strokeRect(cx - sz / 2, patchY, sz, sz);
         ctx.restore();
       } else if (mode === 'gradRho') {
         const [gx, gy] = gradientDisplayVector(ops.gradRho);
