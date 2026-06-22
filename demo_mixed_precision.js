@@ -7,72 +7,10 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
     const $$ = q => root.querySelectorAll(q);
 
     const canvas = $("#demo-canvas");
-
-    // --- Canvas recording: start on "s", stop+download on "p" ---
-    // Note: browsers typically record canvas as WebM (not MP4) via MediaRecorder.
-    const RECORD_FPS = 60;
-    let mediaRecorder = null;
-    let recordedChunks = [];
-    let isRecording = false;
-
-    function pickMimeType() {
-        if (!window.MediaRecorder) return '';
-        const candidates = [
-            'video/webm;codecs=vp9',
-            'video/webm;codecs=vp8',
-            'video/webm',
-        ];
-        for (const t of candidates) {
-            if (MediaRecorder.isTypeSupported(t)) return t;
-        }
-        return '';
-    }
-
-    function startCanvasRecording() {
-        if (isRecording) return;
-        if (!canvas?.captureStream || !window.MediaRecorder) {
-            console.warn('Recording not supported (captureStream/MediaRecorder missing).');
-            return;
-        }
-
-        const stream = canvas.captureStream(RECORD_FPS);
-        const mimeType = pickMimeType();
-        try {
-            mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-        } catch (err) {
-            console.error('Failed to create MediaRecorder:', err);
-            return;
-        }
-
-        recordedChunks = [];
-        mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-        };
-        mediaRecorder.onstop = () => {
-            const type = mediaRecorder?.mimeType || 'video/webm';
-            const blob = new Blob(recordedChunks, { type });
-            const url = URL.createObjectURL(blob);
-
-            const ts = new Date().toISOString().replace(/[:.]/g, '-');
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `canvas_${ts}.webm`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 10_000);
-        };
-
-        mediaRecorder.start();
-        isRecording = true;
-        console.log('Recording started. Press "p" to stop + download.');
-    }
-
-    function stopCanvasRecording() {
-        if (!isRecording || !mediaRecorder) return;
-        isRecording = false;
-        mediaRecorder.stop();
-    }
+    const canvasRecorder = createCanvasRecorderController(canvas, {
+        glsl: GLSL,
+        filenamePrefix: `npa-${demo_type}-mixed-precision`,
+    });
 
     const glsl = (param, target) => GLSL({
         ...param, Inc: [`
@@ -223,7 +161,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         let grid_size = [nca_grid.size[0], nca_grid.size[1], 2];
         glsl({
             state: nca_grid[0], Grid: grid_size, ...uniforms,
-            Clear: [bg_color, bg_color, bg_color, isRecording ? 1.0 : 0.0],
+            Clear: [bg_color, bg_color, bg_color, canvasRecorder.isRecording() ? 1.0 : 0.0],
             inv_rho, neighborhood, Aspect: 'mean', ...uniforms,
             Blend: 'd*(1-sa)+s',
             VP: `
@@ -315,7 +253,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
     function init_event_listeners() {
-        document.addEventListener('keydown', async e => {
+        document.onkeydown = async e => {
             // Don't steal key presses from form controls.
             const tag = e.target?.tagName?.toLowerCase?.();
             if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
@@ -323,13 +261,11 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             if (e.key === 'r') {
                 reset();
             }
-            if (e.key === 's' && false) { // disabled for now
-                // Ensure capture uses the displayed canvas resolution.
-                GLSL.adjustCanvas();
-                startCanvasRecording();
+            if (false && e.key === 's') {
+                canvasRecorder.start();
             }
-            if (e.key === 'p') {
-                stopCanvasRecording();
+            if (false && e.key === 'p') {
+                canvasRecorder.stop();
             }
             if (e.key === "Shift") {
                 if (canvas.style.cursor != "grabbing") {
@@ -344,13 +280,13 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             if (e.key === "c") {
                 uniforms.channel_idx = (uniforms.channel_idx + 1) % 5;
             }
-        });
-        document.addEventListener("keyup", e => {
+        };
+        document.onkeyup = e => {
             if (e.key === 'Shift') {
                 canvas.style.cursor = "default";
                 last_cursor_style = canvas.style.cursor;
             }
-        });
+        };
 
         // Remove all event listeners first
         canvas.onmousedown = null;
@@ -1193,6 +1129,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
         }
         render();
+        canvasRecorder.captureFrame();
 
 
         GLSL.animation_id = requestAnimationFrame(frame);
