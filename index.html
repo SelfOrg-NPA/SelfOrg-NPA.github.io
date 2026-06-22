@@ -651,26 +651,91 @@
 <script src="dat.gui.min.js"></script>
 
 <script type="module">
-    import { createDemo } from './demo.js'
-    import { createDemo as createEquivariantDemo } from './equivariant/demo.js'
-
     const canvas = document.getElementById('demo-canvas');
     canvas.width = 1024;
     canvas.height = 1024;
     const glsl = SwissGL(canvas);
 
+    // --- Precision routing ---------------------------------------------------
+    // The NPA grid is a layered framebuffer: 16 state channels + 1 position
+    // layer = C4+1 = 5 layers. As RGBA32F that is 5*16 = 80 bytes/pixel. iOS
+    // GPUs cap the per-pixel MRT (tile-memory) budget around 64 bytes, so 5x
+    // RGBA32F fails there. The mixed-precision build stores the grid as 6x
+    // RGBA16F (48 bytes) instead. We probe the real limit at startup and pick
+    // the build accordingly; #...-mp / #...-fp hash suffixes force a build.
+    const GRID_LAYERS_FULL = 5; // C4 + 1, with C4 = 16/4
+
+    function probeMaxRgba32fLayers(maxWant = 8) {
+        const gl = canvas.getContext('webgl2');
+        if (!gl) return 0;
+        gl.getExtension('EXT_color_buffer_float'); // required to render to RGBA32F
+        const tex = gl.createTexture();
+        const fbo = gl.createFramebuffer();
+        let maxLayers = 0;
+        try {
+            gl.bindTexture(gl.TEXTURE_2D_ARRAY, tex);
+            gl.texStorage3D(gl.TEXTURE_2D_ARRAY, 1, gl.RGBA32F, 4, 4, maxWant);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+            for (let n = 1; n <= maxWant; n++) {
+                const bufs = [];
+                for (let i = 0; i < n; i++) {
+                    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, tex, 0, i);
+                    bufs.push(gl.COLOR_ATTACHMENT0 + i);
+                }
+                gl.drawBuffers(bufs);
+                const complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+                if (complete) gl.clear(gl.COLOR_BUFFER_BIT); // second signal: clear must not error
+                if (complete && gl.getError() === gl.NO_ERROR) maxLayers = n; else break;
+            }
+        } catch (e) {
+            console.warn('[NPA] MRT capability probe threw:', e);
+        } finally {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.bindTexture(gl.TEXTURE_2D_ARRAY, null);
+            gl.deleteFramebuffer(fbo);
+            gl.deleteTexture(tex);
+        }
+        return maxLayers;
+    }
+
+    const maxF32Layers = probeMaxRgba32fLayers(8);
+    const supportsFull = maxF32Layers >= GRID_LAYERS_FULL;
+    console.log(
+        `[NPA] MRT probe: max RGBA32F color attachments = ${maxF32Layers} ` +
+        `(~${maxF32Layers * 16} bytes/pixel). Grid needs ${GRID_LAYERS_FULL} layers ` +
+        `(${GRID_LAYERS_FULL * 16} bytes) -> device ${supportsFull ? 'supports FULL precision' : 'requires MIXED precision'}.`
+    );
+
+    const FULL_MODULES = {
+        growing: './demo.js',
+        texture: './demo.js',
+        equivariant: './equivariant/demo.js',
+    };
+    const MIXED_MODULES = {
+        growing: './demo_mixed_precision.js',
+        texture: './demo_mixed_precision.js',
+        equivariant: './equivariant/demo_mixed_precision.js',
+    };
+
+    // Parse "#growing", "#texture-mp", "#equivariant-fp", etc.
+    function parseHash() {
+        let h = (window.location.hash || '').replace('#', '').toLowerCase();
+        let override = null; // 'mp' = force mixed precision, 'fp' = force full precision
+        if (h.endsWith('-mp')) { override = 'mp'; h = h.slice(0, -3); }
+        else if (h.endsWith('-fp')) { override = 'fp'; h = h.slice(0, -3); }
+        const type = (h === 'texture' || h === 'growing' || h === 'equivariant') ? h : 'growing';
+        return { type, override };
+    }
+
+    function shouldUseMixed(override) {
+        if (override === 'mp') return true;  // forced via #...-mp
+        if (override === 'fp') return false; // forced via #...-fp
+        return !supportsFull;                // auto-detect
+    }
+
     const textureBtnWrap = document.getElementById('texture_demo_button');
     const growingBtnWrap = document.getElementById('growing_demo_button');
     const equivariantBtnWrap = document.getElementById('equivariant_demo_button');
-
-    function getInitialDemoFromHash() {
-        const h = (window.location.hash || '').replace('#', '').toLowerCase();
-        // alert(h);
-        if (h === 'texture') return 'texture';
-        if (h === 'growing') return 'growing';
-        if (h === 'equivariant') return 'equivariant';
-        return 'growing';
-    }
 
     function setHighlight(demoName) {
         if (demoName === 'texture') {
@@ -688,31 +753,35 @@
         }
     }
 
-    function InitializeDemo(tp, first = false) {
-        if (!first && currentDemo === tp) return;
+    let currentDemo = null;
+    let currentMixed = null;
+    let currentOverride = null;
+
+    async function InitializeDemo(tp, override = currentOverride, first = false) {
+        const mixed = shouldUseMixed(override);
+        if (!first && currentDemo === tp && currentMixed === mixed) return;
         currentDemo = tp;
+        currentMixed = mixed;
+        currentOverride = override;
         glsl.reset();
+        const modulePath = (mixed ? MIXED_MODULES : FULL_MODULES)[tp];
+        console.log(`[NPA] loading "${tp}" from ${modulePath} -> ${mixed ? 'MIXED' : 'FULL'} precision`);
+        const mod = await import(modulePath);
         if (tp === 'equivariant') {
-            createEquivariantDemo(glsl, 'demo');
+            mod.createDemo(glsl, 'demo');
         } else {
-            createDemo(glsl, 'demo', tp);
+            mod.createDemo(glsl, 'demo', tp);
         }
         setHighlight(tp);
-        window.location.hash = tp;
+        // Reflect type + any explicit override in the URL (auto-detect stays a bare hash).
+        window.location.hash = tp + (override ? '-' + override : '');
     }
 
-    let currentDemo = getInitialDemoFromHash();
-    InitializeDemo(currentDemo, true);
+    const initial = parseHash();
+    currentOverride = initial.override;
+    InitializeDemo(initial.type, initial.override, true);
 
-    document.getElementById('call-texture-demo').addEventListener('click', function () {
-        InitializeDemo('texture');
-    });
-
-    document.getElementById('call-growing-demo').addEventListener('click', function () {
-        InitializeDemo('growing');
-    });
-
-    document.getElementById('call-equivariant-demo').addEventListener('click', function () {
-        InitializeDemo('equivariant');
-    });
+    document.getElementById('call-texture-demo').addEventListener('click', () => InitializeDemo('texture'));
+    document.getElementById('call-growing-demo').addEventListener('click', () => InitializeDemo('growing'));
+    document.getElementById('call-equivariant-demo').addEventListener('click', () => InitializeDemo('equivariant'));
 </script>

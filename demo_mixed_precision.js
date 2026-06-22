@@ -88,7 +88,15 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             return a.x * b.y - a.y * b.x;
         }
 
-        
+        // --- Mixed precision: position stored across two rgba16f layers (hi + lo) ---
+        // Round a scalar to its float16 representation (matches an rgba16f store).
+        float q16(float v) { return unpackHalf2x16(packHalf2x16(vec2(v, 0.0))).x; }
+        // Reconstruct a ~float32 position from its hi and lo layers.
+        vec2 join_pos(vec4 hi, vec4 lo) { return hi.xy + lo.xy; }
+        // Split a position p into a hi layer (idx kept in .z, model in .w) and a lo layer.
+        vec4 pack_pos_hi(vec2 p, float idx, float model) { return vec4(q16(p.x), q16(p.y), idx, model); }
+        vec4 pack_pos_lo(vec2 p) { return vec4(p.x - q16(p.x), p.y - q16(p.y), 0.0, 0.0); }
+
     `].concat(param.Inc || [])
     }, target);
 
@@ -253,7 +261,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                         outer = 1.0;
                     }
                         
-            vec2 pos = state(ID.xy, 4).xy;
+            vec2 pos = join_pos(state(ID.xy, 4), state(ID.xy, 5));
             VPos = vec4(((pos - viewC) + XY * radius) / viewR, 0.0, 1.0);
         `,
             FP: `
@@ -730,11 +738,12 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             //     pos += vec2(-0.5, 0.0);
             //     model_idx = 1.0;
             // }
-            FOut4 = vec4(pos, particle_idx, model_idx);
+            FOut4 = pack_pos_hi(pos, particle_idx, model_idx);
+            FOut5 = pack_pos_lo(pos);
         }
-        
+
     `
-        }, { size: [H, W], layern: C4 + 1, format: 'rgba32f', story: 2, tag: 'grid' });
+        }, { size: [H, W], layern: C4 + 2, format: 'rgba16f', story: 2, tag: 'grid' });
         let sort_steps = nca_grid.size[0] * nca_grid.size[1];
         sort_steps = 4 * Math.log2(sort_steps) ** 2;
         for (let i = 0; i < sort_steps; ++i) {
@@ -747,8 +756,8 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         if (brush_mode == 1) {
             glsl({
                 x0, y0, x1, y1, ...uniforms, seed: Math.random() * 4123, FP: `
-            FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
-            vec2 x = Src(I,4).xy;
+            FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4); FOut5 = Src(I,5);
+            vec2 x = join_pos(Src(I,4), Src(I,5));
             // Account for view center/scale: mouse in world coords
             vec2 p0 = vec2(x0, y0) * viewR + viewC;
             vec2 p1 = vec2(x1, y1) * viewR + viewC;
@@ -769,17 +778,17 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                     x += n * brush_size * 0.04 * wiggle * sign(side);
                 }
             }
-            FOut4.xy = x;
+            FOut4 = pack_pos_hi(x, Src(I,4).z, Src(I,4).w); FOut5 = pack_pos_lo(x);
         `
             }, nca_grid);
 
         } else if (brush_mode == 0) {
             glsl({
                 ...uniforms, x_pos: x1, y_pos: y1, FP: `
-            FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
+            FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4); FOut5 = Src(I,5);
             // Click position in world coordinates
             vec2 click_pos = vec2(x_pos, y_pos) * viewR + viewC;
-            vec2 pos = Src(I,4).xy;
+            vec2 pos = join_pos(Src(I,4), Src(I,5));
             float dist = length(pos - click_pos);
             if (dist < brush_size * 0.08) {
                 FOut = FOut1 = FOut2 = FOut3 = vec4(0.0);
@@ -790,10 +799,10 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             // Pull brush: attract particles toward click_pos with noise and falloff
             glsl({
                 ...uniforms, x_pos: x1, y_pos: y1, seed: Math.random() * 4123, FP: `
-            FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
+            FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4); FOut5 = Src(I,5);
             // Click position in world coordinates
             vec2 click_pos = vec2(x_pos, y_pos) * viewR + viewC;
-            vec2 pos = Src(I,4).xy;
+            vec2 pos = join_pos(Src(I,4), Src(I,5));
             vec2 dir = click_pos - pos;
             float dist = length(dir);
             if (dist > 0.0) {
@@ -804,7 +813,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                 vec2 rnd = hash(ivec3(I, seed)).yz * 2.0 - 1.0;
                 vec2 jitter = (vec2(-ndir.y, ndir.x) * rnd.x + ndir * rnd.y) * 0.2 * falloff;
                 pos += ndir * strength + jitter * 0.0;
-                FOut4.xy = pos;
+                FOut4 = pack_pos_hi(pos, Src(I,4).z, Src(I,4).w); FOut5 = pack_pos_lo(pos);
             }
         `
             }, nca_grid);
@@ -812,9 +821,9 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             // Set index brush: set model index (stored in FOut4.z) to 1 within radius
             glsl({
                 ...uniforms, x_pos: x1, y_pos: y1, FP: `
-                FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4);
+                FOut = Src(I,0); FOut1 = Src(I,1); FOut2 = Src(I,2); FOut3 = Src(I,3); FOut4 = Src(I,4); FOut5 = Src(I,5);
                 vec2 click_pos = vec2(x_pos, y_pos) * viewR + viewC;
-                vec2 pos = Src(I,4).xy;
+                vec2 pos = join_pos(Src(I,4), Src(I,5));
                 float dist = length(pos - click_pos);
                 if (dist < 0.05) {
                     // FOut4.w = min(FOut4.w + 0.01, 1.0);
@@ -836,20 +845,23 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         int i1 = i0 + ((i0+eo)&1)*2-1;
         ivec2 I1 = (rc==1)?ivec2(i1, I.y):ivec2(I.x, i1);
         I1 = clamp(I1, ivec2(0), ViewSize-1);
-        vec4 v0=Src(I, 4), v1=Src(I1, 4);
-        bool less = (rc==1) ? v0.x<v1.x : v0.y<v1.y;
+        vec4 v0=Src(I, 4), v0lo=Src(I, 5), v1=Src(I1, 4), v1lo=Src(I1, 5);
+        vec2 p0 = v0.xy + v0lo.xy, p1 = v1.xy + v1lo.xy;
+        bool less = (rc==1) ? p0.x<p1.x : p0.y<p1.y;
         if (i0 < i1 == less) {
         FOut = Src(I, 0);
         FOut1 = Src(I, 1);
         FOut2 = Src(I, 2);
         FOut3 = Src(I, 3);
         FOut4 = v0;
+        FOut5 = v0lo;
         } else {
         FOut = Src(I1, 0);
         FOut1 = Src(I1, 1);
         FOut2 = Src(I1, 2);
         FOut3 = Src(I1, 3);
         FOut4 = v1;
+        FOut5 = v1lo;
         }
     }`}, nca_grid);
         sort_phase = (sort_phase + 1) % 4;
@@ -864,7 +876,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         int D = state_size()[0]/ViewSize[0];
         ivec2 base = I * D;
         FOR2(i, 0, ivec2(D)) {
-            vec2 p = state(base+i, C4).xy;
+            vec2 p = join_pos(state(base+i, C4), state(base+i, C4+1));
             FOut.xy = min(FOut.xy, p);
             FOut.zw = max(FOut.zw, p);
         }`}, { size: nca_grid[0].size, scale: 1 / 4, format: 'rgba32f', tag: 'bbox' });
@@ -892,7 +904,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             state: nca_grid[0], neighborhood, bbox,
             ...uniforms, ...modelA, FP: `
         const int C4 = ${C4};
-        vec2 p_i = state(I, C4).xy;
+        vec2 p_i = join_pos(state(I, C4), state(I, C4+1));
         float r = eps * 1.1;
         vec4 query_box = vec4(p_i - r, p_i + r);
         int D = ViewSize.x/neighborhood_size().x;
@@ -902,7 +914,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
         FOR2(k, nbh.xy, nbh.zw + 1) {
             if (!box_intersects(bbox(k), query_box)) continue;
             FOR2(d, 0, ivec2(D)) {
-                vec2 p_j = state(d + k * D, C4).xy;
+                vec2 p_j = join_pos(state(d + k * D, C4), state(d + k * D, C4+1));
                 float w_ij = smoothing_kernel(p_j - p_i, eps);
                 rho_i += w_ij;
                 if (w_ij > 0.0) count += 1.0;
@@ -925,14 +937,14 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
             for (int chn=0; chn<C4; ++chn) perc[chn] = upd[chn] = Src(I,chn);
 
-            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3]; FOut4 = Src(I,C4);
+            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3]; FOut4 = Src(I,C4); FOut5 = Src(I,C4+1);
             if (hash(ivec3(I,seed)).x>0.5) return;
 
             upd[C4] = vec4(0.0); // position update and particle/model idx
             for (int i=C4; i<C4*4 + 1; ++i) perc[i] = vec4(0.0);
 
             float coef = eps / eps0; // eps / default_eps
-            vec2 p_i = Src(I,C4).xy;
+            vec2 p_i = join_pos(Src(I,C4), Src(I,C4+1));
             float r = eps * 1.1;
             vec4 query_box = vec4(p_i - r, p_i + r);
             int D = ViewSize.x/neighborhood_size().x;
@@ -944,7 +956,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                 FOR2(d, 0, ivec2(D)) {
                     ivec2 I_j = d + k * D;
                     float inv_rho_j = inv_rho(I_j, 0).x;
-                    vec2 p_j = Src(I_j,C4).xy;
+                    vec2 p_j = join_pos(Src(I_j,C4), Src(I_j,C4+1));
                     vec2 r_ij = p_j - p_i;
                     float w_ij = smoothing_kernel(r_ij, eps);
                     if (w_ij == 0.0) continue;
@@ -1023,7 +1035,7 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
 
 
             FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3];
-            // FOut = clamp(upd[0], vec4(-1.0), vec4(1.0)); 
+            // FOut = clamp(upd[0], vec4(-1.0), vec4(1.0));
             // FOut1 = clamp(upd[1], vec4(-1.0), vec4(1.0));
             // FOut2 = clamp(upd[2], vec4(-1.0), vec4(1.0));
             // FOut3 = clamp(upd[3], vec4(-1.0), vec4(1.0));
@@ -1034,9 +1046,11 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             if (position_noise > 0.0) {
                 upd[C4].xy += (hash(ivec3(I,seed + 12371.0)).yz - 0.5) * position_noise;
             }
-            // vec2 pos_change = hash(ivec3(I, seed + 12371.0)).yz * 0.02 - 0.01;
-            // FOut4 = Src(I,4);// + vec4(pos_change, 0.0, 0.0); // keep position unchanged
-            FOut4 += upd[C4];
+            // full-precision position accumulation across the hi/lo layers
+            vec4 hi = Src(I,C4), lo = Src(I,C4+1);
+            vec2 p_new = hi.xy + lo.xy + upd[C4].xy;
+            FOut4 = pack_pos_hi(p_new, hi.z + upd[C4].z, hi.w + upd[C4].w);
+            FOut5 = pack_pos_lo(p_new);
         }
     `
         }, nca_grid);
@@ -1050,12 +1064,12 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             state: nca_grid[0], ...uniforms, ...modelA, FP: `
         const int C4 = ${C4};
         int N = state_size().x * state_size().y;
-        vec2 p_i = state(I, C4).xy;
+        vec2 p_i = join_pos(state(I, C4), state(I, C4+1));
         float rho_i = 0.0;
         float count = 0.0;
         for (int j = 0; j < N; ++j) {
             ivec2 I_j = ivec2(j % ViewSize.x, j / ViewSize.x);
-            vec2 p_j = state(I_j, C4).xy;
+            vec2 p_j = join_pos(state(I_j, C4), state(I_j, C4+1));
             float w_ij = smoothing_kernel(p_j - p_i, eps);
             rho_i += w_ij;
             if (w_ij > 0.0) count += 1.0;
@@ -1077,18 +1091,18 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
             // return;
 
             for (int chn=0; chn<C4; ++chn) perc[chn] = upd[chn] = Src(I,chn);
-            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3]; FOut4 = Src(I,C4);
+            FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3]; FOut4 = Src(I,C4); FOut5 = Src(I,C4+1);
             if (hash(ivec3(I,seed)).x >= 0.5) return;
             upd[C4] = vec4(0.0);
             for (int i=C4; i<C4*4 + 1; ++i) perc[i] = vec4(0.0);
 
             float coef = eps / eps0; // eps / default_eps
-            vec2 p_i = Src(I,C4).xy;
+            vec2 p_i = join_pos(Src(I,C4), Src(I,C4+1));
             int N = ViewSize.x * ViewSize.y;
             for (int j = 0; j < N; ++j) {
                 ivec2 I_j = ivec2(j % ViewSize.x, j / ViewSize.x);
                 float inv_rho_j = inv_rho(I_j, 0).x;
-                vec2 p_j = Src(I_j,C4).xy;
+                vec2 p_j = join_pos(Src(I_j,C4), Src(I_j,C4+1));
                 vec2 r_ij = p_j - p_i;
                 float w_ij = smoothing_kernel(r_ij, eps);
                 if (w_ij == 0.0) continue;
@@ -1138,16 +1152,18 @@ export function createDemo(GLSL, divId, demo_type = "growing") {
                 for (int i=0; i<C4 + 1; ++i) {upd[i] += y*w2t(ivec2(i, h));}
             }
             FOut = upd[0]; FOut1 = upd[1]; FOut2 = upd[2]; FOut3 = upd[3];
-            // FOut = clamp(upd[0], vec4(-1.0), vec4(1.0)); 
+            // FOut = clamp(upd[0], vec4(-1.0), vec4(1.0));
             // FOut1 = clamp(upd[1], vec4(-1.0), vec4(1.0));
             // FOut2 = clamp(upd[2], vec4(-1.0), vec4(1.0));
             // FOut3 = clamp(upd[3], vec4(-1.0), vec4(1.0));
             vec2 dp = upd[C4].xy;
             
-            upd[C4] = alpha * eps * dp / (1.0 + length(dp));
-            // vec2 pos_change = hash(ivec3(I, seed + 12371.0)).yz * 0.02 - 0.01;
-            // FOut4 = Src(I,4);// + vec4(pos_change, 0.0, 0.0); // keep position unchanged
-            FOut4 += upd[C4];
+            upd[C4].xy = alpha * eps * dp / (1.0 + length(dp));
+            // full-precision position accumulation across the hi/lo layers
+            vec4 hi = Src(I,C4), lo = Src(I,C4+1);
+            vec2 p_new = hi.xy + lo.xy + upd[C4].xy;
+            FOut4 = pack_pos_hi(p_new, hi.z + upd[C4].z, hi.w + upd[C4].w);
+            FOut5 = pack_pos_lo(p_new);
         }
     `
         }, nca_grid);
