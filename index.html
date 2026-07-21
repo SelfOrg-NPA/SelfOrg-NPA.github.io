@@ -31,6 +31,7 @@
     <!-- SPH perception demo (also usable standalone via sph-demo.html) -->
     <link rel="stylesheet" href="sph-demo.css">
     <script defer src="sph-demo.js"></script>
+    <script defer src="static/js/video-carousel.js"></script>
 
     <script src="swissgl.js"></script>
     <script src="dat.gui.min.js"></script>
@@ -529,6 +530,60 @@
 
             <!--/ Paper video. -->
 
+        </div>
+    </section>
+
+    <section class="section video-carousel-section" aria-label="Research videos">
+        <div class="container is-max-desktop">
+            <div class="video-carousel" data-video-carousel tabindex="0">
+                <div class="video-carousel-viewport">
+                    <div class="video-carousel-slide is-active">
+                        <video controls autoplay loop muted playsinline preload="metadata">
+                            <source src="data/videos/npa-fast-forward.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="video-carousel-slide" hidden>
+                        <video controls loop muted playsinline preload="metadata">
+                            <source src="data/videos/point-mnist.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="video-carousel-slide" hidden>
+                        <video controls loop muted playsinline preload="metadata">
+                            <source src="data/videos/demo-spedup.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="video-carousel-slide" hidden>
+                        <video controls loop muted playsinline preload="metadata">
+                            <source src="data/videos/3dgs/chair-orbit-evolve.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="video-carousel-slide" hidden>
+                        <video controls loop muted playsinline preload="metadata">
+                            <source src="data/videos/3dgs/hotdog-orbit-evolve.mp4" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="video-carousel-slide" hidden>
+                        <video controls loop muted playsinline preload="metadata">
+                            <source src="data/videos/3dgs/lego-orbit-evolve.mp4" type="video/mp4">
+                        </video>
+                    </div>
+
+                    <button class="video-carousel-arrow video-carousel-previous" type="button"
+                        aria-label="Previous video">&#10094;</button>
+                    <button class="video-carousel-arrow video-carousel-next" type="button"
+                        aria-label="Next video">&#10095;</button>
+                </div>
+
+                <div class="video-carousel-dots" role="group" aria-label="Choose video">
+                    <button class="video-carousel-dot is-active" type="button" aria-label="Show video 1"
+                        aria-current="true"></button>
+                    <button class="video-carousel-dot" type="button" aria-label="Show video 2"></button>
+                    <button class="video-carousel-dot" type="button" aria-label="Show video 3"></button>
+                    <button class="video-carousel-dot" type="button" aria-label="Show video 4"></button>
+                    <button class="video-carousel-dot" type="button" aria-label="Show video 5"></button>
+                    <button class="video-carousel-dot" type="button" aria-label="Show video 6"></button>
+                </div>
+            </div>
         </div>
     </section>
 
